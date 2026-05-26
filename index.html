@@ -1043,11 +1043,19 @@ function subscribeMusicSync() {
     const data = snap.val();
     if (!data) return;
 
-    // 1. Always update label
+    // 1. Always update "who is controlling" label
     const otherRole = myRole === 'A' ? 'B' : 'A';
-    const otherName = nicknames[otherRole] || (otherRole === 'A' ? 'Star' : 'Moon');
     const statusEl = document.getElementById('music-other-status');
-    if (statusEl) statusEl.textContent = data.by === otherRole ? `${otherName} কন্ট্রোল করছে` : '';
+    if (statusEl) {
+      if (data.by === myRole) {
+        statusEl.textContent = 'তুমি কন্ট্রোল করছ';
+        statusEl.style.color = '#80cc80';
+      } else {
+        const otherName = nicknames[otherRole] || (otherRole === 'A' ? 'Star' : 'Moon');
+        statusEl.textContent = `${otherName} কন্ট্রোল করছে`;
+        statusEl.style.color = '#aaaacc';
+      }
+    }
 
     // 2. Merge queue FIRST
     if (data.queue && data.queue.length > 0) {
@@ -1394,19 +1402,16 @@ function extractYTVideoId(url) {
 window.musicAddToQueue = function(videoId, title, channel, thumb, duration) {
   // Avoid duplicates
   if (musicQueue.some(q => q.videoId === videoId)) {
-    // Just play it
-    const idx = musicQueue.findIndex(q => q.videoId === videoId);
-    musicCurrentIdx = idx;
-    loadCurrentTrack(0, true);
-    pushMusicState('load');
+    // Already in queue — just highlight it, don't autoplay
+    showToast('ইতিমধ্যে Queue তে আছে!');
     renderQueue();
     return;
   }
   musicQueue.push({ videoId, title: decodeHTMLEntities(title), channel, thumb, duration });
   if (musicCurrentIdx < 0) {
+    // First track added — cue it (no autoplay) so user can press play
     musicCurrentIdx = 0;
-    loadCurrentTrack(0, true);
-    pushMusicState('load');
+    loadCurrentTrack(0, false);
   }
   pushMusicState('queue_update');
   renderQueue();
