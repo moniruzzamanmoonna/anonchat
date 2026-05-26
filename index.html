@@ -1706,7 +1706,7 @@ window.selectRole = function(role) {
   });
 
   startListeners();
-  presenceInterval = setInterval(() => { pingPresence(); updateSeen(); }, 3000);
+  presenceInterval = setInterval(() => { pingPresence(); updateSeen(); updatePresence(); }, 3000);
   pingPresence();
 
   // Show other person's notes as popup after short delay
@@ -3756,7 +3756,8 @@ function updateCountdownPreview() {
 function pingPresence() {
   if (!myRole) return;
   const myPresRef = ref(db, `presence/${myRole}`);
-  update(myPresRef, { last: Date.now(), typing: isTyping ? 1 : 0 }).catch(() => {});
+  // Use Firebase server timestamp to avoid client clock drift
+  update(myPresRef, { last: { ".sv": "timestamp" }, typing: isTyping ? 1 : 0 }).catch(() => {});
 }
 
 function updatePresence() {
@@ -3804,7 +3805,7 @@ function updateSeen() {
   if (last.role !== myRole && Number(last.ts) !== lastSeenTs) {
     lastSeenTs = Number(last.ts);
     const myPresRef = ref(db, `presence/${myRole}`);
-    update(myPresRef, { seen: last.ts }).catch(() => {});
+    update(myPresRef, { seen: { ".sv": "timestamp" } }).catch(() => {});
   }
 }
 
