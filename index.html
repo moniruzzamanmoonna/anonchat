@@ -958,7 +958,7 @@ function createYTPlayer() {
   const targetEl = document.getElementById('yt-player-visible') || document.getElementById('yt-player');
   ytPlayer = new YT.Player(targetEl, {
     height: '100%', width: '100%',
-    playerVars: { autoplay: 1, controls: 1, enablejsapi: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+    playerVars: { autoplay: 0, controls: 1, enablejsapi: 1, playsinline: 1, rel: 0, modestbranding: 1 },
     events: {
       onReady: () => {
         ytReady = true;
@@ -1188,12 +1188,16 @@ function loadCurrentTrack(startTime, autoPlay, _retries) {
       ytPlayer.loadVideoById({ videoId: track.videoId, startSeconds: startTime || 0 });
     } else {
       ytPlayer.cueVideoById({ videoId: track.videoId, startSeconds: startTime || 0 });
+      // Force pause — cueVideoById can still trigger play if autoplay was previously set
+      setTimeout(() => { try { ytPlayer.pauseVideo(); } catch(e) {} }, 200);
     }
     // Ensure unmuted after load
     setTimeout(() => {
       try {
-        ytPlayer.unMute();
-        ytPlayer.setVolume(parseInt(document.getElementById('music-vol').value) || 80);
+        if (autoPlay) {
+          ytPlayer.unMute();
+          ytPlayer.setVolume(parseInt(document.getElementById('music-vol').value) || 80);
+        }
       } catch(e) {}
     }, 300);
   } catch(err) {
