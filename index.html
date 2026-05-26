@@ -1048,16 +1048,19 @@ function subscribeMusicSync() {
     document.getElementById('music-other-status').textContent =
       data.by === otherRole ? `${otherName} কন্ট্রোল করছে` : '';
 
-    // Sync queue from remote
+    // Sync queue from remote — do this BEFORE action handling so index is valid
     if (data.queue && data.queue.length > 0) {
       const remoteQ = data.queue;
-      // Merge remote queue (keep local order, add missing)
       const existingIds = musicQueue.map(q => q.videoId);
       remoteQ.forEach(rq => {
         if (!existingIds.includes(rq.videoId)) {
           musicQueue.push(rq);
         }
       });
+      // If remote has tracks and local queue was empty, rebuild with full remote queue
+      if (existingIds.length === 0) {
+        musicQueue = remoteQ.map(q => ({ ...q }));
+      }
     }
 
     // Auto-load YT API in background if not loaded yet
@@ -1081,10 +1084,18 @@ function subscribeMusicSync() {
         } else {
           if (ytPlayer && ytReady) {
             const diff = Math.abs(ytPlayer.getCurrentTime() - remoteTime);
-            if (diff > 2) ytPlayer.seekTo(remoteTime, true);
+            if (diff > 1.5) ytPlayer.seekTo(remoteTime, true);
             ytPlayer.playVideo();
           }
         }
+      } else if (remoteIdx >= 0) {
+        // Index out of range — queue may still be loading; retry after short delay
+        setTimeout(() => {
+          if (remoteIdx < musicQueue.length) {
+            musicCurrentIdx = remoteIdx;
+            loadCurrentTrack(remoteTime, true);
+          }
+        }, 1000);
       }
       document.getElementById('music-play-btn').textContent = '⏸';
       musicPlaying = true;
@@ -1106,14 +1117,9 @@ function subscribeMusicSync() {
     // Show sync badge
     updateSyncBadge(true);
 
-    // Notify if panel is closed
-    const panel = document.getElementById('music-panel');
-    if (panel && panel.style.display === 'none') {
-      if (action === 'play' || action === 'load') {
-        const trackTitle = musicQueue[remoteIdx]?.title || 'একটা গান';
-        showToast(`🎵 ${data.by === 'A' ? (nicknames.A||'Star') : (nicknames.B||'Moon')} গান চালু করেছে`);
-      }
-    }
+    // Show music toast for all actions (panel open or closed)
+    const trackTitle = musicQueue[remoteIdx]?.title || musicQueue[musicCurrentIdx]?.title || '';
+    showMusicToast(action, data.by, trackTitle);
   });
 }
 
@@ -1663,7 +1669,7 @@ window.selectRole = function(role) {
   });
 
   startListeners();
-  presenceInterval = setInterval(pingPresence, 5000);
+  presenceInterval = setInterval(() => { pingPresence(); updateSeen(); }, 3000);
   pingPresence();
 
   // Show other person's notes as popup after short delay
@@ -2723,6 +2729,87 @@ function updateGamePresence() {
     const el = document.getElementById(id);
     if (el) el.textContent = status;
   });
+}
+
+// ── GENERAL TOAST ────────────────────────────────────────
+function showToast(msg, duration) {
+  const existing = document.getElementById('general-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'general-toast';
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(30,20,60,0.97);color:#d0c0ff;padding:9px 20px;border-radius:20px;font-size:13px;z-index:800;border:1px solid #4a3a8a;box-shadow:0 4px 20px rgba(0,0,0,0.5);pointer-events:none;white-space:nowrap;max-width:88vw;text-overflow:ellipsis;overflow:hidden;';
+  document.body.appendChild(toast);
+  setTimeout(() => toast?.remove(), duration || 2500);
+}
+
+// ── MUSIC TOAST ───────────────────────────────────────────
+function showMusicToast(action, byRole, trackTitle) {
+  const existing = document.getElementById('music-toast');
+  if (existing) existing.remove();
+
+  const name = nicknames[byRole] || (byRole === 'A' ? 'Star' : 'Moon');
+  const icon = ICONS[byRole] || '🎵';
+
+  let actionText = '';
+  let emoji = '';
+  if (action === 'play' || action === 'load') {
+    actionText = 'চালু করেছে';
+    emoji = '▶️';
+  } else if (action === 'pause') {
+    actionText = 'pause করেছে';
+    emoji = '⏸️';
+  } else if (action === 'next') {
+    actionText = 'next করেছে';
+    emoji = '⏭️';
+  } else if (action === 'prev') {
+    actionText = 'prev করেছে';
+    emoji = '⏮️';
+  } else if (action === 'seek') {
+    actionText = 'seek করেছে';
+    emoji = '⏩';
+  } else {
+    return;
+  }
+
+  const toast = document.createElement('div');
+  toast.id = 'music-toast';
+
+  const shortTitle = trackTitle ? (trackTitle.length > 30 ? trackTitle.substring(0, 30) + '…' : trackTitle) : '';
+  toast.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:22px;">${emoji}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;color:#9988cc;margin-bottom:1px;">${icon} <b>${name}</b> ${actionText}</div>
+        ${shortTitle ? `<div style="font-size:13px;color:#e0d0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${shortTitle}</div>` : ''}
+      </div>
+      <span style="font-size:11px;color:#6655aa;flex-shrink:0;">🎵</span>
+    </div>
+  `;
+  toast.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(18,10,40,0.97);color:#d0c0ff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:800;border:1px solid #5a3a9a;box-shadow:0 4px 24px rgba(80,40,180,0.35);cursor:pointer;min-width:200px;max-width:88vw;backdrop-filter:blur(12px);animation:musicToastIn 0.25s ease;';
+
+  // Tap to open music panel
+  toast.addEventListener('click', () => {
+    toast.remove();
+    openMusicPanel();
+  });
+
+  // Add animation keyframe if not present
+  if (!document.getElementById('music-toast-style')) {
+    const style = document.createElement('style');
+    style.id = 'music-toast-style';
+    style.textContent = '@keyframes musicToastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.style.transition = 'opacity 0.3s';
+      toast.style.opacity = '0';
+      setTimeout(() => toast?.remove(), 300);
+    }
+  }, 4000);
 }
 
 function showGameMsgToast(text) {
