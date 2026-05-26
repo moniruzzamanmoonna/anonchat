@@ -1198,11 +1198,8 @@ function loadCurrentTrack(startTime, autoPlay, _retries) {
   try {
     if (autoPlay) {
       ytPlayer.loadVideoById({ videoId: track.videoId, startSeconds: startTime || 0 });
-    } else {
-      ytPlayer.cueVideoById({ videoId: track.videoId, startSeconds: startTime || 0 });
-      // Force pause — cueVideoById can still trigger play if autoplay was previously set
-      setTimeout(() => { try { ytPlayer.pauseVideo(); } catch(e) {} }, 200);
     }
+    // autoPlay=false: don't call cueVideoById — it can trigger play on mobile
     // Ensure unmuted after load
     setTimeout(() => {
       try {
@@ -1425,9 +1422,21 @@ window.musicAddToQueue = function(videoId, title, channel, thumb, duration) {
   }
   musicQueue.push({ videoId, title: decodeHTMLEntities(title), channel, thumb, duration });
   if (musicCurrentIdx < 0) {
-    // First track added — cue it (no autoplay) so user can press play
+    // First track — set index and update UI only, DO NOT touch player
     musicCurrentIdx = 0;
-    loadCurrentTrack(0, false);
+    // Show track info in UI without loading player
+    const track = musicQueue[0];
+    const titleEl = document.getElementById('music-track-title');
+    const artistEl = document.getElementById('music-track-artist');
+    const artImg = document.getElementById('music-art-img');
+    const artEmoji = document.getElementById('music-art-emoji');
+    if (titleEl) titleEl.textContent = track.title || 'Unknown';
+    if (artistEl) artistEl.textContent = track.channel || '♪ যোগ হয়েছে — ▶ চাপো';
+    if (track.thumb && artImg) {
+      artImg.src = track.thumb;
+      artImg.style.display = 'block';
+      if (artEmoji) artEmoji.style.display = 'none';
+    }
   }
   pushMusicState('queue_update');
   renderQueue();
