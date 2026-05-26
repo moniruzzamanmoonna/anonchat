@@ -1042,84 +1042,91 @@ function subscribeMusicSync() {
   musicSyncUnsubscribe = onValue(musicRef, snap => {
     const data = snap.val();
     if (!data) return;
-    // Update other user's status
+
+    // 1. Always update label
     const otherRole = myRole === 'A' ? 'B' : 'A';
     const otherName = nicknames[otherRole] || (otherRole === 'A' ? 'Star' : 'Moon');
-    document.getElementById('music-other-status').textContent =
-      data.by === otherRole ? `${otherName} কন্ট্রোল করছে` : '';
+    const statusEl = document.getElementById('music-other-status');
+    if (statusEl) statusEl.textContent = data.by === otherRole ? `${otherName} কন্ট্রোল করছে` : '';
 
-    // Sync queue from remote — do this BEFORE action handling so index is valid
+    // 2. Merge queue FIRST
     if (data.queue && data.queue.length > 0) {
       const remoteQ = data.queue;
-      const existingIds = musicQueue.map(q => q.videoId);
-      remoteQ.forEach(rq => {
-        if (!existingIds.includes(rq.videoId)) {
-          musicQueue.push(rq);
-        }
-      });
-      // If remote has tracks and local queue was empty, rebuild with full remote queue
-      if (existingIds.length === 0) {
+      if (musicQueue.length === 0) {
         musicQueue = remoteQ.map(q => ({ ...q }));
+      } else {
+        const existingIds = new Set(musicQueue.map(q => q.videoId));
+        remoteQ.forEach(rq => { if (!existingIds.has(rq.videoId)) musicQueue.push({ ...rq }); });
       }
     }
 
-    // Auto-load YT API in background if not loaded yet
+    // 3. Auto-load YT API
     if (!ytReady) loadYTApi();
 
-    // Don't apply our own events
-    if (data.by === myRole) return;
-    // Debounce rapid sync
+    const isMine = data.by === myRole;
+    const action = data.action;
+    const remoteIdx = typeof data.queueIdx === 'number' ? data.queueIdx : -1;
+    const remoteTime = data.currentTime || 0;
+    const trackTitle = (remoteIdx >= 0 ? musicQueue[remoteIdx]?.title : null)
+                    || musicQueue[musicCurrentIdx]?.title || '';
+
+    // 4. Toast for receiver only
+    if (!isMine) showMusicToast(action, data.by, trackTitle);
+
+    if (isMine) return;
+
+    // 5. Debounce
     if (data.ts <= musicLastSyncTs) return;
     musicLastSyncTs = data.ts;
 
-    const action = data.action;
-    const remoteIdx = data.queueIdx;
-    const remoteTime = data.currentTime || 0;
+    // 6. Apply action
+    const playBtn = document.getElementById('music-play-btn');
 
     if (action === 'play' || action === 'load') {
-      if (remoteIdx >= 0 && remoteIdx < musicQueue.length) {
-        if (remoteIdx !== musicCurrentIdx) {
-          musicCurrentIdx = remoteIdx;
-          loadCurrentTrack(remoteTime, true);
-        } else {
-          if (ytPlayer && ytReady) {
+      musicPlaying = true;
+      if (playBtn) playBtn.textContent = '\u23f8';
+      renderQueue();
+      const applyPlay = () => {
+        if (remoteIdx >= 0 && remoteIdx < musicQueue.length) {
+          if (remoteIdx !== musicCurrentIdx) {
+            musicCurrentIdx = remoteIdx;
+            loadCurrentTrack(remoteTime, true);
+          } else if (ytPlayer && ytReady) {
             const diff = Math.abs(ytPlayer.getCurrentTime() - remoteTime);
             if (diff > 1.5) ytPlayer.seekTo(remoteTime, true);
             ytPlayer.playVideo();
           }
         }
-      } else if (remoteIdx >= 0) {
-        // Index out of range — queue may still be loading; retry after short delay
-        setTimeout(() => {
-          if (remoteIdx < musicQueue.length) {
-            musicCurrentIdx = remoteIdx;
-            loadCurrentTrack(remoteTime, true);
-          }
-        }, 1000);
-      }
-      document.getElementById('music-play-btn').textContent = '⏸';
-      musicPlaying = true;
-      renderQueue();
+      };
+      if (!ytReady) {
+        let tries = 0;
+        const wait = setInterval(() => {
+          tries++;
+          if (ytReady) { clearInterval(wait); applyPlay(); }
+          else if (tries > 10) clearInterval(wait);
+        }, 500);
+      } else { applyPlay(); }
+
     } else if (action === 'pause') {
-      if (ytPlayer && ytReady) ytPlayer.pauseVideo();
-      document.getElementById('music-play-btn').textContent = '▶';
       musicPlaying = false;
+      if (playBtn) playBtn.textContent = '\u25b6';
+      if (ytPlayer && ytReady) ytPlayer.pauseVideo();
+
     } else if (action === 'seek') {
       if (ytPlayer && ytReady) ytPlayer.seekTo(remoteTime, true);
-    } else if (action === 'prev' || action === 'next') {
-      musicCurrentIdx = remoteIdx;
-      loadCurrentTrack(0, true);
-      renderQueue();
+
+    } else if (action === 'next' || action === 'prev') {
+      if (remoteIdx >= 0 && remoteIdx < musicQueue.length) {
+        musicCurrentIdx = remoteIdx;
+        loadCurrentTrack(0, true);
+        renderQueue();
+      }
+
     } else if (action === 'queue_update') {
       renderQueue();
     }
 
-    // Show sync badge
     updateSyncBadge(true);
-
-    // Show music toast for all actions (panel open or closed)
-    const trackTitle = musicQueue[remoteIdx]?.title || musicQueue[musicCurrentIdx]?.title || '';
-    showMusicToast(action, data.by, trackTitle);
   });
 }
 
