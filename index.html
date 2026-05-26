@@ -1083,8 +1083,20 @@ function subscribeMusicSync() {
 
     if (isMine) return;
 
-    // 5. Debounce
+    // 5. Debounce + ignore stale state on page load (older than 30s)
     if (data.ts <= musicLastSyncTs) return;
+    const staleMs = Date.now() - Number(data.ts);
+    if (musicLastSyncTs === 0 && staleMs > 30000) {
+      // First sync event but it's old — just load the queue/track info, don't play
+      musicLastSyncTs = data.ts;
+      if (action === 'play' || action === 'load') {
+        if (typeof data.queueIdx === 'number' && data.queueIdx >= 0 && data.queueIdx < musicQueue.length) {
+          musicCurrentIdx = data.queueIdx;
+          loadCurrentTrack(0, false); // cue only, no autoplay
+        }
+      }
+      return;
+    }
     musicLastSyncTs = data.ts;
 
     // 6. Apply action
