@@ -4595,6 +4595,11 @@ async function saveOneSignalId(role) {
   try {
     await new Promise(res => setTimeout(res, 2000)); // SDK load হতে দাও
     if (!window.OneSignal) return;
+
+    // Permission চাও
+    const permission = await OneSignal.Notifications.requestPermission();
+    console.log('Notification permission:', permission);
+
     const id = await OneSignal.User.pushSubscription.id;
     if (id) {
       await set(ref(db, `osTokens/${role}`), id);
@@ -4620,7 +4625,7 @@ function showEmergencyBanner(senderName) {
   }
   // Tab বন্ধ না থাকলেও browser notification দেখাও
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(`🚨 ${senderName} তোমাকে ডাকছে!`, {
+    new Notification(`🚨 An urgent call from ${senderName}`, {
       body: 'Chat এ আসো এখনই!',
       tag: 'emergency',
       requireInteraction: true
