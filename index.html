@@ -23,6 +23,18 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Anon Chat">
 <link rel="apple-touch-icon" href="icon-192.png">
+<!-- OneSignal SDK -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "5246d53f-ef34-4e37-8252-c18602e7262e",
+      notifyButton: { enable: false },
+      allowLocalhostAsSecureOrigin: true,
+    });
+  });
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -268,6 +280,7 @@
 <div id="lock-screen" style="color:var(--body-color,#e0e0ff)">
   <div class="lock-icon">🔐</div>
   <div class="lock-title">ANON CHAT</div>
+  <div style="font-size:11px;letter-spacing:2px;color:#333355;margin-top:-18px;">v 1.3.8</div>
   <div class="lock-sub">secret code দাও</div>
   <input class="lock-input" id="lock-input" type="password" placeholder="••••••" maxlength="20" onkeydown="if(event.key==='Enter') checkCode()">
   <button class="lock-btn" onclick="checkCode()">প্রবেশ করো</button>
@@ -325,6 +338,7 @@
           <div class="dot-item" onclick="dotAction('gallery')">🖼️ &nbsp;Photos</div>
           <div class="dot-item" onclick="dotAction('archive-view')">🗂️ &nbsp;Archive দেখো</div>
           <div class="dot-item" id="dot-archive-btn" style="display:none;" onclick="dotAction('archive-now')">🗃️ &nbsp;Archive করো</div>
+          <div class="dot-item" onclick="toggleDotMenu();enableNotification()">🔔 &nbsp;Notification চালু করো</div>
           <div class="dot-item" style="color:#ff6666;" onclick="toggleDotMenu();openEmergencyModal()">🆘 &nbsp;Emergency Call</div>
         </div>
       </div>
@@ -4570,8 +4584,8 @@ window.musicRemoveFromQueue = function(idx) {
 // ── EMERGENCY CALL SYSTEM (OneSignal) ──────────────────
 // ═══════════════════════════════════════════════════════
 
-const ONESIGNAL_APP_ID  = "2da912f2-184d-4052-bcf5-9041a4699ea0";
-const ONESIGNAL_REST_KEY = "os_v2_app_fwurf4qyjvaffphvsba2i2m6ubxxdebq4tguqcfyy4qwslk6cokh3a4wqgqf4nl5wif4ch7nj4vrfa2hr7ynzc6xq55fezatquq2yly";
+const ONESIGNAL_APP_ID  = "5246d53f-ef34-4e37-8252-c18602e7262e";
+const ONESIGNAL_REST_KEY = "os_v2_app_kjdnkp7pgrhdpassygdafzzgfzy7nqvk6cfej2v65kyct5elbmjwkazmmb5dpmiwnpzzsr54mwve6kpxzhlefahin3k6brhmfnac2by";
 
 let emergencyUnlisten = null;
 let emergencyDismissTs = 0;
@@ -4620,6 +4634,20 @@ async function setupEmergencyNotifications(role) {
   listenEmergency(role);
   await saveOneSignalId(role);
 }
+
+window.enableNotification = async function() {
+  try {
+    if (!window.OneSignal) { alert('OneSignal লোড হয়নি, একটু পরে try করো।'); return; }
+    const perm = await OneSignal.Notifications.requestPermission();
+    if (perm) {
+      await saveOneSignalId(myRole);
+      alert('✅ Notification চালু হয়েছে!');
+    } else {
+      // Chrome-এ blocked হলে settings-এ যেতে বলো
+      alert('⚠️ Notification blocked আছে!\n\nChrome Settings → Site Settings → ' + location.hostname + ' → Notifications → Allow করো।');
+    }
+  } catch(e) { console.log('enable notif error:', e); }
+};
 
 window.dismissEmergencyBanner = function() {
   emergencyDismissTs = Date.now();
