@@ -726,9 +726,15 @@
     <!-- Nickname -->
     <div style="background:rgba(25,20,50,0.7);border:1px solid #2a2a5a;border-radius:14px;padding:14px 16px;">
       <div style="font-size:12px;color:var(--title,#c0b0ff);font-weight:600;margin-bottom:10px;letter-spacing:1px;">✏️ NICKNAME</div>
-      <div style="display:flex;gap:8px;align-items:flex-start;">
+      <div style="font-size:11px;color:#555577;margin-bottom:8px;">আমার নাম</div>
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">
         <textarea id="my-nickname-input" maxlength="20" placeholder="নাম লিখো..." rows="1" style="flex:1;background:#1a1030;border:1px solid #5a5aaa;border-radius:10px;color:#ffffff;padding:8px 12px;font-size:14px;font-family:inherit;outline:none;resize:none;overflow:hidden;line-height:1.5;min-height:38px;-webkit-text-fill-color:#ffffff;"></textarea>
         <button onclick="saveNickname()" style="background:var(--send-bg,linear-gradient(135deg,#3a1a7e,#5a2a9e));border:none;color:#fff;border-radius:10px;padding:8px 16px;cursor:pointer;font-size:13px;white-space:nowrap;">Save</button>
+      </div>
+      <div style="font-size:11px;color:#555577;margin-bottom:8px;">অপরজনের নাম</div>
+      <div style="display:flex;gap:8px;align-items:flex-start;">
+        <textarea id="other-nickname-input" maxlength="20" placeholder="নাম লিখো..." rows="1" style="flex:1;background:#1a1030;border:1px solid #5a5aaa;border-radius:10px;color:#ffffff;padding:8px 12px;font-size:14px;font-family:inherit;outline:none;resize:none;overflow:hidden;line-height:1.5;min-height:38px;-webkit-text-fill-color:#ffffff;"></textarea>
+        <button onclick="saveOtherNickname()" style="background:var(--send-bg,linear-gradient(135deg,#3a1a7e,#5a2a9e));border:none;color:#fff;border-radius:10px;padding:8px 16px;cursor:pointer;font-size:13px;white-space:nowrap;">Save</button>
       </div>
     </div>
 
@@ -2754,6 +2760,16 @@ window.openSettingsPanel = function() {
   if (notesInp) notesInp.value = notes[myRole] || "";
   // Render banned words
   renderBannedWordsList();
+  // Populate other nickname
+  const otherRole = myRole === "A" ? "B" : "A";
+  const otherInp = document.getElementById("other-nickname-input");
+  const otherDefault = otherRole === "A" ? "Star" : "Moon";
+  if (otherInp) {
+    otherInp.value = nicknames[otherRole] === otherDefault ? "" : (nicknames[otherRole] || "");
+    otherInp.placeholder = nicknames[otherRole] || otherDefault;
+    otherInp.addEventListener("touchstart", (e) => e.stopPropagation(), { once: false });
+    otherInp.addEventListener("click", () => otherInp.focus());
+  }
 }
 
 window.closeSettingsPanel = function() {
@@ -2770,6 +2786,19 @@ window.saveNickname = async function() {
   inp.value = "";
   inp.placeholder = val;
   sendSystemMsg(`✏️ ${oldName} নাম পরিবর্তন করেছে → ${val}`);
+  showToast("✅ Nickname save হয়েছে: " + val);
+}
+
+window.saveOtherNickname = async function() {
+  const inp = document.getElementById("other-nickname-input");
+  const val = inp.value.trim();
+  if (!val) { alert("নাম লিখো!"); return; }
+  const otherRole = myRole === "A" ? "B" : "A";
+  const oldName = nicknames[otherRole] || (otherRole === "A" ? "Star" : "Moon");
+  await update(nicknameRef, { [otherRole]: val }).catch(() => {});
+  inp.value = "";
+  inp.placeholder = val;
+  sendSystemMsg(`✏️ ${oldName}-এর নাম পরিবর্তন হয়েছে → ${val}`);
   showToast("✅ Nickname save হয়েছে: " + val);
 }
 
@@ -2852,9 +2881,10 @@ function updatePresence() {
   const otherName = nicknames[other] || (other === "A" ? "Star" : "Moon");
   const otherMood = moods[other] ? " " + moods[other] : "";
   const otherLabel = ICONS[other] + " " + otherName + otherMood;
+  const presenceEl = document.getElementById("other-presence");
 
   if (!p || !p.last) {
-    document.getElementById("other-presence").textContent = otherLabel + " — অপেক্ষায়...";
+    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(40,40,80,0.5);border:1px solid #333;border-radius:20px;padding:2px 10px;font-size:11px;color:#666;">${otherLabel} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:#444;display:inline-block;"></span> অফলাইন</span>`;
     typingEl.style.display = "none";
     return;
   }
@@ -2867,18 +2897,30 @@ function updatePresence() {
   }
 
   const diff = Date.now() - Number(p.last);
-  let status;
-  if (diff < 10000) status = "এখন সক্রিয় 🟢";
-  else if (diff < 60000) status = Math.floor(diff/1000) + " সেকেন্ড আগে";
-  else if (diff < 3600000) status = Math.floor(diff/60000) + " মিনিট আগে";
-  else if (diff < 43200000) {
-    const h = Math.floor(diff/3600000);
-    const m = Math.floor((diff % 3600000)/60000);
-    status = h + " ঘণ্টা" + (m > 0 ? " " + m + " মিনিট" : "") + " আগে";
+  let status, dotColor, bgColor, borderColor;
+  if (diff < 10000) {
+    status = "Online";
+    dotColor = "#22ee66";
+    bgColor = "rgba(20,60,30,0.6)";
+    borderColor = "#1a5a30";
+  } else if (diff < 60000) {
+    status = Math.floor(diff/1000) + " সেকেন্ড আগে";
+    dotColor = "#ffaa22";
+    bgColor = "rgba(50,40,10,0.5)";
+    borderColor = "#554420";
+  } else if (diff < 3600000) {
+    status = Math.floor(diff/60000) + " মিনিট আগে";
+    dotColor = "#ff6644";
+    bgColor = "rgba(50,20,10,0.5)";
+    borderColor = "#552010";
   } else {
-    status = "১২+ ঘণ্টা আগে 🔴";
+    status = Math.floor(diff/3600000) + " ঘণ্টা আগে";
+    dotColor = "#555";
+    bgColor = "rgba(30,30,40,0.5)";
+    borderColor = "#333";
   }
-  document.getElementById("other-presence").textContent = otherLabel + " — " + status;
+
+  presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:2px 10px;font-size:11px;color:#ccc;">${otherLabel} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 5px '+dotColor:''}"></span> ${status}</span>`;
 }
 
 // ── SEEN ────────────────────────────────────────────────
@@ -4636,17 +4678,36 @@ async function setupEmergencyNotifications(role) {
 }
 
 window.enableNotification = async function() {
-  try {
-    if (!window.OneSignal) { alert('OneSignal লোড হয়নি, একটু পরে try করো।'); return; }
-    const perm = await OneSignal.Notifications.requestPermission();
-    if (perm) {
-      await saveOneSignalId(myRole);
-      alert('✅ Notification চালু হয়েছে!');
-    } else {
-      // Chrome-এ blocked হলে settings-এ যেতে বলো
-      alert('⚠️ Notification blocked আছে!\n\nChrome Settings → Site Settings → ' + location.hostname + ' → Notifications → Allow করো।');
+  // Step 1: Browser notification permission
+  if (!('Notification' in window)) {
+    alert('এই browser-এ notification support নেই।'); return;
+  }
+  
+  let perm = Notification.permission;
+  if (perm === 'default') {
+    perm = await Notification.requestPermission();
+  }
+  
+  if (perm === 'denied') {
+    alert('⚠️ Notification blocked!\n\nChrome → address bar-এর 🔒 icon → Site settings → Notifications → Allow করো।');
+    return;
+  }
+
+  if (perm === 'granted') {
+    // Step 2: OneSignal ID save করো
+    if (window.OneSignal) {
+      try {
+        const id = await OneSignal.User.pushSubscription.id;
+        if (id) {
+          await set(ref(db, `osTokens/${myRole}`), id);
+          alert('✅ Notification চালু হয়েছে!');
+          return;
+        }
+      } catch(e) { console.log('OneSignal ID error:', e); }
     }
-  } catch(e) { console.log('enable notif error:', e); }
+    // OneSignal না থাকলেও permission granted দেখাও
+    alert('✅ Permission দেওয়া হয়েছে! OneSignal sync হতে একটু সময় লাগবে।');
+  }
 };
 
 window.dismissEmergencyBanner = function() {
