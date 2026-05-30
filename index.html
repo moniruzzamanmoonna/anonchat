@@ -4654,8 +4654,9 @@ window.sendEmergency = async function() {
         'Title': `An urgent call from ${myName}`,
         'Priority': 'urgent',
         'Tags': 'rotating_light',
+        'Content-Type': 'text/plain; charset=utf-8',
       },
-      body: 'Chat এ আসো এখনই! 🚨'
+      body: 'Come to chat now!'
     });
     if (res.ok) {
       alert('✅ ntfy sent! topic: ' + otherTopic);
