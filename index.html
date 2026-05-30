@@ -36,23 +36,159 @@
   body { font-family:'Hind Siliguri',sans-serif; background:var(--bg); color:var(--body-color,#e0e0ff); height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 
   /* LOCK */
-  #lock-screen { display:flex; flex-direction:column; align-items:center; gap:24px; padding:32px; text-align:center; }
-  .lock-icon { font-size:52px; }
-  .lock-title { font-size:22px; letter-spacing:3px; color:var(--title); font-weight:300; }
-  .lock-sub { font-size:12px; color:var(--hint-color,#555577); }
-  .lock-input { background:rgba(20,20,50,0.8); border:1px solid #3a3a6a; border-radius:12px; color:#e0e0ff; padding:12px 20px; font-size:18px; font-family:inherit; outline:none; text-align:center; letter-spacing:4px; width:220px; }
-  .lock-input:focus { border-color:#6060aa; }
-  .lock-btn { background:var(--send-bg); border:none; border-radius:12px; color:var(--btn-color,#e0d0ff); padding:12px 32px; cursor:pointer; font-size:15px; font-family:inherit; }
-  .lock-error { font-size:12px; color:#e07070; min-height:16px; }
+  #lock-screen {
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:0; padding:40px 32px;
+    text-align:center; min-height:100vh; position:relative; overflow:hidden;
+  }
+  #lock-screen::before {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse at 50% 30%, rgba(80,50,180,0.18) 0%, transparent 65%),
+                radial-gradient(ellipse at 80% 80%, rgba(30,80,160,0.1) 0%, transparent 50%);
+  }
+  .lock-glow-ring {
+    width:90px; height:90px; border-radius:50%;
+    background: rgba(80,50,160,0.12);
+    border: 1.5px solid rgba(120,90,220,0.25);
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:28px;
+    box-shadow: 0 0 40px rgba(100,70,200,0.15), inset 0 0 30px rgba(80,50,160,0.08);
+    position:relative;
+  }
+  .lock-glow-ring::after {
+    content:''; position:absolute; inset:-6px; border-radius:50%;
+    border:1px solid rgba(120,90,220,0.1);
+  }
+  .lock-icon { font-size:38px; line-height:1; }
+  .lock-title {
+    font-size:13px; letter-spacing:6px; text-transform:uppercase;
+    color:rgba(180,160,255,0.5); font-weight:400; margin-bottom:6px;
+  }
+  .lock-appname {
+    font-size:32px; font-weight:700; letter-spacing:1px;
+    background: linear-gradient(135deg, #c8b8ff 0%, #a090e0 50%, #80c0e8 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text; margin-bottom:8px; line-height:1.1;
+  }
+  .lock-version {
+    display:inline-flex; align-items:center; gap:5px;
+    background: linear-gradient(135deg, rgba(100,60,220,0.3), rgba(60,120,220,0.3));
+    border:1px solid rgba(140,100,255,0.5);
+    border-radius:20px; padding:4px 14px; margin-bottom:36px;
+    font-size:12px; color:#c8b0ff; letter-spacing:2px; font-weight:500;
+  }
+  .lock-version::before { content:'●'; font-size:7px; color:#88ffbb; }
+  .lock-sub { font-size:12px; color:rgba(100,90,150,0.8); margin-bottom:16px; letter-spacing:0.5px; }
+  .lock-input-wrap { position:relative; width:260px; margin-bottom:16px; }
+  .lock-input {
+    background:rgba(15,12,35,0.85); border:1px solid rgba(60,50,110,0.6);
+    border-radius:16px; color:#e0e0ff; padding:16px 20px;
+    font-size:20px; font-family:inherit; outline:none;
+    text-align:center; letter-spacing:6px; width:100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .lock-input:focus {
+    border-color:rgba(120,90,220,0.7);
+    box-shadow: 0 0 0 3px rgba(100,70,200,0.12), 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .lock-btn {
+    background: linear-gradient(135deg, #4a2a9e, #6a3abe);
+    border:none; border-radius:16px;
+    color:#e8e0ff; padding:15px 0; cursor:pointer;
+    font-size:15px; font-family:inherit; font-weight:500;
+    width:260px; letter-spacing:1px;
+    box-shadow: 0 8px 24px rgba(80,40,180,0.35);
+    transition: all 0.2s;
+  }
+  .lock-btn:hover { background:linear-gradient(135deg,#5a3aae,#7a4ace); transform:translateY(-1px); }
+  .lock-btn:active { transform:translateY(1px) scale(0.98); }
+  .lock-error { font-size:12px; color:#e07070; min-height:18px; margin-top:12px; letter-spacing:0.3px; }
 
   /* ROLE */
-  #role-screen { display:none; flex-direction:column; align-items:center; gap:24px; padding:24px; }
-  .role-buttons { display:flex; gap:20px; }
-  .role-btn { background:var(--ra-bg); border:1px solid var(--ra-border); border-radius:16px; padding:28px 40px; cursor:pointer; color:var(--body-color,#e0e0ff); font-family:inherit; font-size:32px; transition:transform 0.2s; box-shadow:0 4px 20px rgba(0,0,0,0.4); text-align:center; }
-  .role-btn.moon { background:var(--rb-bg); border-color:var(--rb-border); }
-  .role-btn:hover { transform:scale(1.05); }
-  .role-btn .label { font-size:13px; margin-top:8px; letter-spacing:2px; opacity:0.7; }
-  .hint { color:var(--hint-color,#555577); font-size:12px; text-align:center; line-height:2; }
+  #role-screen {
+    display:none; flex-direction:column; align-items:center;
+    gap:0; padding:28px 20px 24px; min-height:100vh;
+    justify-content:center; position:relative; overflow:hidden;
+  }
+  #role-screen::before {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse at 50% 20%, rgba(80,50,180,0.18) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 80%, rgba(30,80,160,0.1) 0%, transparent 50%);
+  }
+  .role-screen-icon { font-size:44px; margin-bottom:14px; filter:drop-shadow(0 0 20px rgba(160,130,255,0.4)); }
+  .role-screen-title {
+    font-size:28px; font-weight:700; letter-spacing:2px;
+    background:linear-gradient(135deg,#c8b8ff 0%,#a090e0 50%,#80c0e8 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text; margin-bottom:16px;
+  }
+  .role-milestone-wrap { margin-bottom:24px; min-height:28px; display:flex; align-items:center; }
+  #chat-milestone {
+    font-size:13px; color:#ffaa55; letter-spacing:0.5px;
+    background:rgba(255,160,60,0.12); border:1px solid rgba(255,160,60,0.3);
+    border-radius:20px; padding:5px 16px;
+  }
+  /* Role cards */
+  .role-buttons { display:flex; gap:14px; margin-bottom:20px; width:100%; max-width:340px; }
+  .role-btn {
+    flex:1;
+    background: linear-gradient(160deg, rgba(70,50,140,0.85), rgba(40,25,90,0.95));
+    border:1px solid rgba(140,110,255,0.35);
+    border-radius:24px; padding:36px 16px 24px;
+    cursor:pointer; color:#e0d8ff; font-family:inherit;
+    font-size:48px; transition:all 0.22s;
+    box-shadow:0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07);
+    text-align:center; position:relative; overflow:hidden;
+  }
+  .role-btn::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:50%;
+    background:linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
+    border-radius:24px 24px 0 0; pointer-events:none;
+  }
+  .role-btn.moon {
+    background:linear-gradient(160deg, rgba(20,55,110,0.85), rgba(10,30,80,0.95));
+    border-color:rgba(70,160,220,0.35);
+    color:#c8e8ff;
+  }
+  .role-btn:hover { transform:translateY(-4px); box-shadow:0 16px 44px rgba(0,0,0,0.55); }
+  .role-btn:active { transform:translateY(0) scale(0.97); }
+  .role-btn .label {
+    font-size:12px; margin-top:12px; letter-spacing:3px;
+    opacity:0.75; font-weight:600; display:block;
+    color:#c0b8ff;
+  }
+  .role-btn.moon .label { color:#90ccee; }
+
+  /* Notes card */
+  .role-notes-card {
+    width:100%; max-width:340px;
+    background:rgba(16,12,40,0.75);
+    border:1px solid rgba(80,60,140,0.4);
+    border-radius:20px; overflow:hidden;
+    box-shadow:0 6px 24px rgba(0,0,0,0.35);
+    margin-bottom:20px;
+  }
+  .role-notes-header {
+    padding:10px 18px; border-bottom:1px solid rgba(80,60,140,0.3);
+    font-size:11px; letter-spacing:2px; color:rgba(160,140,220,0.6);
+    text-transform:uppercase; font-weight:600;
+  }
+  .role-notes-row {
+    display:flex; align-items:flex-start; gap:10px;
+    padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .role-notes-row:last-child { border-bottom:none; }
+  .role-notes-avatar {
+    width:28px; height:28px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; margin-top:1px;
+  }
+  .role-notes-avatar.star { background:rgba(100,80,200,0.2); border:1px solid rgba(120,100,220,0.3); }
+  .role-notes-avatar.moon { background:rgba(20,70,130,0.2); border:1px solid rgba(50,120,200,0.3); }
+  .role-notes-text { font-size:13px; color:#b8b0e0; line-height:1.5; flex:1; white-space:pre-wrap; word-break:break-word; }
+
+  .hint { color:rgba(120,110,180,0.65); font-size:12px; text-align:center; line-height:2.2; margin-bottom:16px; }
   .theme-switcher { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
   .theme-dot { width:28px; height:28px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:transform 0.2s; }
   .theme-dot:hover { transform:scale(1.2); }
@@ -60,17 +196,331 @@
 
   /* CHAT */
   #chat-screen { display:none; flex-direction:column; width:100%; max-width:600px; height:100vh; }
-  .chat-header { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--header-bg); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
-  .header-left { display:flex; flex-direction:column; gap:2px; }
-  .header-top { display:flex; align-items:center; gap:8px; }
-  .header-name { font-size:14px; color:var(--title); }
-  .header-presence { font-size:11px; color:#555577; }
-  .header-right { display:flex; gap:8px; align-items:center; }
-  .msg-count { font-size:12px; color:#6060aa; background:rgba(60,60,120,0.3); padding:3px 8px; border-radius:10px; }
-  .btn-small { background:transparent; border:1px solid #3a2a4a; color:#888; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:11px; font-family:inherit; }
-  .btn-small:hover { border-color:#6a4a7a; color:#aaa; }
 
-  .messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+  /* ── POLISHED HEADER ── */
+  .chat-header {
+    padding: 0 8px 0 4px;
+    border-bottom: 1px solid rgba(80,60,140,0.2);
+    background: rgba(8,8,22,0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    height: 62px;
+    position: relative;
+    box-shadow: 0 1px 0 rgba(100,80,200,0.08), 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .chat-header::after {
+    content:'';
+    position:absolute;
+    bottom:0;left:0;right:0;height:1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(120,90,220,0.4) 30%, rgba(80,160,220,0.3) 70%, transparent 100%);
+  }
+
+  /* Back button */
+  .btn-small {
+    background: transparent;
+    border: none;
+    color: #7070aa;
+    border-radius: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 18px;
+    font-family: inherit;
+    line-height: 1;
+    transition: color 0.15s, background 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .btn-small:hover { color: #c0b0ff; background: rgba(100,80,180,0.12); }
+  .btn-small:active { background: rgba(100,80,180,0.22); }
+
+  /* Center: name + stats pill */
+  .header-center-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .header-name-row {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .header-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #d4c8ff;
+    letter-spacing: 0.3px;
+  }
+  .header-online-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #44dd88;
+    box-shadow: 0 0 6px #44dd88;
+    animation: onlinePulse 2.5s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  @keyframes onlinePulse {
+    0%,100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:0.55; transform:scale(0.7); }
+  }
+
+  /* Stats pill: ● 2 Hrs 37m | 21 days */
+  .header-stats-pill {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: rgba(30,20,60,0.75);
+    border: 1px solid rgba(90,70,160,0.3);
+    border-radius: 20px;
+    overflow: hidden;
+    height: 22px;
+  }
+  .stats-segment {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+    height: 100%;
+  }
+  .stats-segment + .stats-segment {
+    border-left: 1px solid rgba(90,70,160,0.25);
+  }
+  .stats-live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #cc4466;
+    box-shadow: 0 0 5px #cc4466;
+    flex-shrink: 0;
+    animation: livePulse 1.2s infinite;
+  }
+  @keyframes livePulse {
+    0%,100%{ opacity:1; } 50%{ opacity:0.3; }
+  }
+  .stats-text {
+    font-size: 11px;
+    color: #a090d0;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .stats-days-text {
+    font-size: 11px;
+    color: #80c0a0;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+  .stats-weather-seg {
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 4px !important;
+  }
+  .stats-weather-seg:hover { background: rgba(100,80,200,0.15); }
+  .weather-icon-mini { font-size: 13px; line-height: 1; }
+  .stats-weather-text {
+    font-size: 11px;
+    color: #90c8e0;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+
+  /* ── WEATHER PANEL ── */
+  #weather-panel {
+    display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:500;
+    background: var(--bg,#0a0a1a); flex-direction:column; max-width:600px; margin:0 auto;
+  }
+  #weather-panel.open { display:flex; }
+  .weather-header {
+    display:flex; align-items:center; gap:10px; padding:12px 16px;
+    border-bottom:1px solid rgba(80,60,140,0.2);
+    background:rgba(8,8,22,0.96); flex-shrink:0;
+    backdrop-filter:blur(20px);
+  }
+  .weather-header-title { font-size:15px; color:#d4c8ff; font-weight:600; flex:1; }
+  .weather-body { flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column; gap:16px; }
+
+  /* Big weather card */
+  .weather-main-card {
+    background: linear-gradient(135deg, rgba(20,30,70,0.9), rgba(10,40,60,0.9));
+    border: 1px solid rgba(80,120,200,0.25);
+    border-radius: 20px;
+    padding: 24px 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    position: relative; overflow: hidden;
+  }
+  .weather-main-card::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at 60% 20%, rgba(80,140,220,0.12) 0%, transparent 65%);
+    pointer-events:none;
+  }
+  .weather-big-icon { font-size: 72px; line-height:1; filter: drop-shadow(0 4px 16px rgba(100,160,255,0.3)); }
+  .weather-big-temp { font-size: 48px; font-weight:300; color:#e8f4ff; letter-spacing:-2px; line-height:1; }
+  .weather-big-label { font-size: 16px; color:#90b8d8; letter-spacing:1px; margin-top:2px; }
+  .weather-big-feels { font-size:12px; color:#556688; }
+  .weather-location-row { display:flex; align-items:center; gap:6px; margin-top:4px; }
+  .weather-location-text { font-size:12px; color:#557799; }
+
+  /* Condition selector */
+  .weather-section-title { font-size:11px; color:#444466; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+  .weather-conditions-grid {
+    display: grid; grid-template-columns: repeat(3,1fr); gap:8px;
+  }
+  .weather-cond-btn {
+    background: rgba(20,18,45,0.7);
+    border: 1px solid rgba(60,55,110,0.4);
+    border-radius: 14px;
+    padding: 12px 8px;
+    cursor: pointer;
+    display: flex; flex-direction:column; align-items:center; gap:5px;
+    transition: all 0.18s;
+    color: inherit; font-family: inherit;
+  }
+  .weather-cond-btn:hover { background: rgba(60,50,120,0.5); border-color: rgba(100,80,180,0.5); }
+  .weather-cond-btn.selected {
+    background: rgba(60,50,140,0.6);
+    border-color: rgba(120,100,220,0.7);
+    box-shadow: 0 0 0 1px rgba(120,100,220,0.3);
+  }
+  .weather-cond-icon { font-size:28px; }
+  .weather-cond-label { font-size:11px; color:#9090cc; }
+  .weather-cond-btn.selected .weather-cond-label { color:#c0b0ff; }
+
+  /* Temp slider */
+  .weather-temp-row { display:flex; align-items:center; gap:12px; }
+  .weather-temp-slider {
+    flex:1; appearance:none; height:4px;
+    background: linear-gradient(90deg, #4488cc, #cc4488);
+    border-radius:4px; outline:none; cursor:pointer;
+  }
+  .weather-temp-slider::-webkit-slider-thumb {
+    appearance:none; width:18px; height:18px; border-radius:50%;
+    background:#c0b0ff; border:2px solid rgba(20,18,45,0.9);
+    cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  }
+  .weather-temp-val { font-size:18px; font-weight:600; color:#d4c8ff; min-width:48px; text-align:right; }
+
+  /* Save button */
+  .weather-save-btn {
+    background: linear-gradient(135deg, #3a1a7e, #5a2a9e);
+    border: none; border-radius:14px; color:#e0d0ff;
+    padding:14px; font-size:15px; font-family:inherit;
+    cursor:pointer; width:100%;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(80,40,160,0.4);
+  }
+  .weather-save-btn:active { transform:scale(0.97); }
+
+  /* Right side: msg count + 3-dot */
+  .header-right-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .msg-count {
+    font-size: 11px;
+    color: #6060aa;
+    background: rgba(60,60,120,0.25);
+    border: 1px solid rgba(70,60,120,0.3);
+    padding: 3px 8px;
+    border-radius: 10px;
+    line-height: 1;
+  }
+
+  /* ── THREE DOT BUTTON ── */
+  .three-dot-btn-wrap { position: relative; }
+  #three-dot-btn {
+    background: transparent;
+    border: none;
+    color: #7070aa;
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    padding: 0;
+    position: relative;
+    z-index: 1;
+  }
+  #three-dot-btn:hover { color: #c0b0ff; background: rgba(100,80,180,0.12); }
+  #three-dot-btn.active { color: #c0b0ff; background: rgba(100,80,180,0.2); }
+
+  /* Custom 3-dot icon */
+  .dot-icon {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3.5px;
+  }
+  .dot-icon span {
+    display: block;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* ── DOT MENU BACKDROP ── */
+  #dot-menu-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 9000;
+    background: rgba(0,0,0,0.5);
+  }
+  #dot-menu-backdrop.menu-open {
+    display: block;
+  }
+
+  /* ── DOT MENU DROPDOWN ── */
+  #dot-menu {
+    display: none;
+    position: fixed;
+    right: 8px;
+    top: 68px;
+    background: #13102a;
+    border: 1px solid #3a3060;
+    border-radius: 16px;
+    min-width: 220px;
+    z-index: 9001;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.95);
+    overflow: hidden;
+  }
+  #dot-menu.menu-open {
+    display: block;
+  }
+
+  .dot-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #ffffff;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    transition: background 0.1s;
+    background: transparent;
+  }
+  .dot-item:last-child { border-bottom: none; }
+  .dot-item:hover { background: rgba(255,255,255,0.08); }
+  .dot-item:active { background: rgba(255,255,255,0.14); }
+  .dot-item.danger { color: #ff6b6b; }
+  .dot-item.danger:hover { background: rgba(200,40,40,0.18); }
+
+  .dot-item-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; position:relative; z-index:1; }
   .empty-state { text-align:center; color:#2a2a5a; font-size:14px; margin-top:60px; line-height:2.5; }
   .loading-state { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;color:#3a3a6a;font-size:13px; }
   .spinner { width:36px;height:36px;border:3px solid rgba(100,80,200,0.2);border-top-color:rgba(100,80,200,0.8);border-radius:50%;animation:spin 0.8s linear infinite; }
@@ -121,9 +571,6 @@
   .g2048-cell { width:62px;height:62px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;transition:all 0.1s; }
   .g2048-score { font-size:22px;font-weight:700;color:var(--title,#c0b0ff); }
   .g2048-label { font-size:11px;color:#555577;text-align:center; }
-  .dot-item { padding:12px 18px;font-size:14px;color:var(--body-color,#e0e0ff);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05); }
-  .dot-item:last-child { border-bottom:none; }
-  .dot-item:active { background:rgba(100,80,200,0.2); }
 
   /* CONTEXT MENU */
   .ctx-overlay { position:fixed; inset:0; z-index:199; background:rgba(0,0,0,0.3); }
@@ -262,72 +709,103 @@
 
 <!-- LOCK -->
 <div id="lock-screen" style="color:var(--body-color,#e0e0ff)">
-  <div class="lock-icon">🔐</div>
-  <div class="lock-title">ANON CHAT</div>
-  <div style="font-size:11px;letter-spacing:2px;color:#333355;margin-top:-18px;">v 1.3.8</div>
+  <div class="lock-glow-ring">
+    <div class="lock-icon">🔐</div>
+  </div>
+  <div class="lock-title">Private</div>
+  <div class="lock-appname">Anon Chat</div>
+  <div class="lock-version" id="lock-version-badge">v 1.3.8</div>
   <div class="lock-sub">secret code দাও</div>
-  <input class="lock-input" id="lock-input" type="password" placeholder="••••••" maxlength="20" onkeydown="if(event.key==='Enter') checkCode()">
+  <div class="lock-input-wrap">
+    <input class="lock-input" id="lock-input" type="password" placeholder="••••••" maxlength="20" onkeydown="if(event.key==='Enter') checkCode()">
+  </div>
   <button class="lock-btn" onclick="checkCode()">প্রবেশ করো</button>
   <div class="lock-error" id="lock-error"></div>
 </div>
 
 <!-- ROLE -->
 <div id="role-screen">
-  <div style="font-size:48px">🌙</div>
-  <div style="font-size:26px;letter-spacing:4px;color:var(--title);font-weight:300">ANON CHAT</div>
-  <div id="chat-milestone" style="font-size:13px;color:var(--title,#c0b0ff);opacity:0.8;letter-spacing:1px;min-height:20px;"></div>
+  <div class="role-screen-icon">🌙</div>
+  <div class="role-screen-title">Anon Chat</div>
+  <div class="role-milestone-wrap">
+    <div id="chat-milestone"></div>
+  </div>
   <div class="role-buttons">
     <button class="role-btn" onclick="selectRole('A')">★<div class="label">Star</div></button>
     <button class="role-btn moon" onclick="selectRole('B')">☽<div class="label">Moon</div></button>
   </div>
   <div class="hint">দুজন আলাদা আলাদা ক্লিক করো।<br>কেউ কাউকে চিনবে না।</div>
-  <!-- Notes display -->
-  <div id="role-notes" style="display:none;margin-top:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:10px 16px;max-width:280px;width:90%;text-align:center;">
-    <div id="role-notes-a" style="display:none;margin-bottom:6px;">
-      <span style="font-size:11px;color:#666;">⭐ Star:</span>
-      <div id="role-notes-a-text" style="font-size:13px;color:var(--title,#c0b0ff);margin-top:2px;white-space:pre-wrap;word-break:break-word;"></div>
+
+  <!-- Notes card -->
+  <div id="role-notes" style="display:none;" class="role-notes-card">
+    <div class="role-notes-header">📋 Notes</div>
+    <div id="role-notes-a" style="display:none;" class="role-notes-row">
+      <div class="role-notes-avatar star">⭐</div>
+      <div id="role-notes-a-text" class="role-notes-text"></div>
     </div>
-    <div id="role-notes-b" style="display:none;">
-      <span style="font-size:11px;color:#666;">🌙 Moon:</span>
-      <div id="role-notes-b-text" style="font-size:13px;color:var(--title,#c0b0ff);margin-top:2px;white-space:pre-wrap;word-break:break-word;"></div>
+    <div id="role-notes-b" style="display:none;" class="role-notes-row">
+      <div class="role-notes-avatar moon">🌙</div>
+      <div id="role-notes-b-text" class="role-notes-text"></div>
     </div>
   </div>
-  <div style="font-size:10px;color:var(--hint-color,#333355);margin-top:8px;letter-spacing:1px;">©Moniruzzaman</div>
+
+  <div style="font-size:10px;color:rgba(100,90,150,0.35);letter-spacing:2px;">©Moniruzzaman</div>
 </div>
 
 <!-- CHAT -->
 <div id="chat-screen">
   <div class="chat-header">
-    <button class="btn-small" onclick="goBack()" style="flex-shrink:0;padding:6px 10px;">←</button>
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-      <div style="font-size:15px;color:var(--title,#c0b0ff);font-weight:500;letter-spacing:0.5px;" id="other-name-header">—</div>
-      <div id="other-presence"></div>
-      <div id="countdown-bar" style="display:none;font-size:11px;color:var(--title,#c0b0ff);"></div>
+    <button class="btn-small" onclick="goBack()" style="font-size:20px;width:36px;height:36px;border-radius:10px;">‹</button>
+
+    <!-- Center -->
+    <div class="header-center-block">
+      <div class="header-name-row">
+        <div class="header-online-dot"></div>
+        <div class="header-name" id="other-name-header">—</div>
+      </div>
+      <!-- Stats pill: presence + weather -->
+      <div class="header-stats-pill">
+        <div class="stats-segment" id="header-presence-seg">
+          <div class="stats-live-dot" id="header-presence-dot"></div>
+          <span class="stats-text" id="header-timer-display">—</span>
+        </div>
+        <div class="stats-segment stats-weather-seg" id="header-weather-seg" onclick="openWeatherPanel()" title="Weather">
+          <span class="weather-icon-mini" id="header-weather-icon">⛅</span>
+          <span class="stats-weather-text" id="header-weather-text">—°</span>
+        </div>
+      </div>
+      <!-- Hidden elements for JS compat -->
+      <div id="other-presence" style="display:none;"></div>
+      <div id="countdown-bar" style="display:none;"></div>
     </div>
+
     <!-- Hidden JS compatibility elements -->
     <span id="my-icon" style="display:none"></span>
     <span id="my-label" style="display:none"></span>
     <span id="my-mood" style="display:none"></span>
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-      <span class="msg-count" style="font-size:12px;">💬 <span id="msg-count">0</span></span>
-      <div style="position:relative;">
-        <button class="btn-small" id="three-dot-btn" onclick="toggleDotMenu()" style="font-size:18px;padding:2px 10px;letter-spacing:1px;">⋮</button>
-        <div id="dot-menu" style="display:none;position:absolute;right:0;top:110%;background:var(--header-bg,rgba(10,10,30,0.98));border:1px solid #3a3a6a;border-radius:12px;min-width:170px;z-index:400;box-shadow:0 8px 24px rgba(0,0,0,0.5);overflow:hidden;">
-          <div class="dot-item" onclick="dotAction('search')">🔍 &nbsp;Search</div>
-          <div class="dot-item" onclick="dotAction('games')">🎮 &nbsp;Games</div>
-          <div class="dot-item" onclick="dotAction('music')">🎵 &nbsp;Synced Music</div>
-          <div class="dot-item" onclick="dotAction('theme')">🎨 &nbsp;Theme</div>
-          <div class="dot-item" onclick="dotAction('settings')">⚙️ &nbsp;Settings</div>
-          <div class="dot-item" onclick="dotAction('restrict')">🔇 &nbsp;Restrict</div>
-          <div class="dot-item" onclick="dotAction('gallery')">🖼️ &nbsp;Photos</div>
-          <div class="dot-item" onclick="dotAction('archive-view')">🗂️ &nbsp;Archive দেখো</div>
-          <div class="dot-item" id="dot-archive-btn" style="display:none;" onclick="dotAction('archive-now')">🗃️ &nbsp;Archive করো</div>
-          <div class="dot-item" style="color:#ff6666;" onclick="toggleDotMenu();openEmergencyModal()">🆘 &nbsp;Emergency Call</div>
-        </div>
+
+    <!-- Right: msg count + 3-dot -->
+    <div class="header-right-group">
+      <span class="msg-count">💬 <span id="msg-count">0</span></span>
+      <div class="three-dot-btn-wrap">
+        <button id="three-dot-btn" onclick="toggleDotMenu()" aria-label="Menu">
+          <div class="dot-icon">
+            <span></span><span></span><span></span>
+          </div>
+        </button>
+
       </div>
     </div>
   </div>
-  <div id="pin-bar" style="display:none;padding:7px 14px;background:rgba(60,40,100,0.25);border-bottom:1px solid rgba(80,60,140,0.35);display:none;align-items:center;gap:8px;flex-shrink:0;cursor:pointer;" onclick="openPinnedPopup()">
+
+  <!-- MILESTONE BANNER -->
+  <div id="milestone-banner" style="display:none; flex-shrink:0; position:relative; overflow:hidden; background:linear-gradient(90deg,rgba(60,30,120,0.55),rgba(20,60,100,0.55),rgba(60,30,120,0.55)); border-bottom:1px solid rgba(100,80,200,0.2); padding:7px 16px; align-items:center; justify-content:center; gap:8px;">
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(120,90,220,0.08) 50%,transparent 100%);animation:shimmer 3s infinite;"></div>
+    <span id="milestone-icon" style="font-size:14px;">📅</span>
+    <span id="milestone-text" style="font-size:12px;color:#c8b8ff;letter-spacing:0.5px;font-weight:500;"></span>
+  </div>
+
+  <div id="pin-bar" style="display:none;padding:7px 14px;background:rgba(60,40,100,0.25);border-bottom:1px solid rgba(80,60,140,0.35);align-items:center;gap:8px;flex-shrink:0;cursor:pointer;" onclick="openPinnedPopup()">
     <span style="font-size:14px;">📌</span>
     <span id="pin-bar-text" style="flex:1;font-size:12px;color:var(--title,#c0b0ff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
     <button onclick="event.stopPropagation();unpinMsg()" style="background:none;border:none;color:#666;cursor:pointer;font-size:15px;padding:0 2px;">✕</button>
@@ -375,6 +853,83 @@
     <textarea id="msg-input" rows="1" placeholder="কিছু লেখো..."></textarea>
     <button class="voice-btn" id="voice-btn" onclick="toggleRecording()" style="display:none;">🎙️</button>
     <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled>➤</button>
+  </div>
+</div>
+
+<!-- WEATHER PANEL -->
+<div id="weather-panel">
+  <div class="weather-header">
+    <button class="btn-small" onclick="closeWeatherPanel()" style="font-size:20px;width:36px;height:36px;border-radius:10px;">‹</button>
+    <div class="weather-header-title">Weather</div>
+  </div>
+  <div class="weather-body">
+    <!-- Main display card -->
+    <div class="weather-main-card">
+      <div class="weather-big-icon" id="wp-big-icon">⛅</div>
+      <div class="weather-big-temp"><span id="wp-temp-display">24</span>°C</div>
+      <div class="weather-big-label" id="wp-label-display">Partly Cloudy</div>
+      <div class="weather-big-feels" id="wp-feels-display">Feels like 26°C</div>
+      <div class="weather-location-row">
+        <span style="font-size:12px;">📍</span>
+        <span class="weather-location-text" id="wp-location">তোমাদের আকাশ</span>
+      </div>
+    </div>
+
+    <!-- Condition picker -->
+    <div>
+      <div class="weather-section-title">আকাশের অবস্থা</div>
+      <div class="weather-conditions-grid">
+        <button class="weather-cond-btn" data-cond="sunny" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">☀️</span>
+          <span class="weather-cond-label">Sunny</span>
+        </button>
+        <button class="weather-cond-btn selected" data-cond="partly-cloudy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">⛅</span>
+          <span class="weather-cond-label">Partly Cloudy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="cloudy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">☁️</span>
+          <span class="weather-cond-label">Cloudy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="rainy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">🌧️</span>
+          <span class="weather-cond-label">Rainy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="stormy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">⛈️</span>
+          <span class="weather-cond-label">Stormy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="windy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">🌬️</span>
+          <span class="weather-cond-label">Windy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="foggy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">🌫️</span>
+          <span class="weather-cond-label">Foggy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="snowy" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">❄️</span>
+          <span class="weather-cond-label">Snowy</span>
+        </button>
+        <button class="weather-cond-btn" data-cond="night-clear" onclick="selectWeatherCond(this)">
+          <span class="weather-cond-icon">🌙</span>
+          <span class="weather-cond-label">Clear Night</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Temp slider -->
+    <div>
+      <div class="weather-section-title">তাপমাত্রা</div>
+      <div class="weather-temp-row">
+        <span style="font-size:13px;color:#4488cc;">❄️</span>
+        <input type="range" class="weather-temp-slider" id="wp-temp-slider" min="-5" max="45" value="24" oninput="updateWeatherTemp(this.value)">
+        <span style="font-size:13px;color:#cc6644;">🔥</span>
+        <span class="weather-temp-val"><span id="wp-temp-val">24</span>°</span>
+      </div>
+    </div>
+
+    <button class="weather-save-btn" onclick="saveWeather()">✓ &nbsp;সেট করো</button>
   </div>
 </div>
 
@@ -853,6 +1408,34 @@
   </div>
 </div>
 <script>
+// ── AUTO VERSION ──────────────────────────────────────
+(function() {
+  const BASE = '1.3.8';
+  function parseVer(v) { const p = v.split('.').map(Number); return { major:p[0]||0, minor:p[1]||0, patch:p[2]||0 }; }
+  function bumpPatch(v) {
+    let {major,minor,patch} = parseVer(v);
+    patch++;
+    if (patch >= 10) { patch = 0; minor++; }
+    if (minor >= 10) { minor = 0; major++; }
+    return `${major}.${minor}.${patch}`;
+  }
+  let stored = localStorage.getItem('ac_version') || BASE;
+  // If stored is behind BASE (fresh deploy), reset to BASE then bump
+  const storedParts = parseVer(stored);
+  const baseParts = parseVer(BASE);
+  const storedNum = storedParts.major*100 + storedParts.minor*10 + storedParts.patch;
+  const baseNum = baseParts.major*100 + baseParts.minor*10 + baseParts.patch;
+  if (storedNum < baseNum) stored = BASE;
+  // Bump on each fresh session (sessionStorage ensures one bump per tab session)
+  if (!sessionStorage.getItem('ac_ver_bumped')) {
+    stored = bumpPatch(stored);
+    localStorage.setItem('ac_version', stored);
+    sessionStorage.setItem('ac_ver_bumped', '1');
+  }
+  const badge = document.getElementById('lock-version-badge');
+  if (badge) badge.textContent = 'v ' + stored;
+})();
+
 function checkCode() {
   const SECRET = "moonstar2025";
   const val = document.getElementById("lock-input").value.trim();
@@ -1003,13 +1586,18 @@ onValue(notesRef, snap => {
   if (!container) return;
   if (noteA) {
     document.getElementById("role-notes-a-text").textContent = noteA;
-    elA.style.display = "block";
+    elA.style.display = "flex";
   } else { elA.style.display = "none"; }
   if (noteB) {
     document.getElementById("role-notes-b-text").textContent = noteB;
-    elB.style.display = "block";
+    elB.style.display = "flex";
   } else { elB.style.display = "none"; }
   container.style.display = (noteA || noteB) ? "block" : "none";
+  // Randomly swap order each load
+  if (noteA && noteB && Math.random() < 0.5) {
+    container.querySelector('.role-notes-header').after(elB);
+    elB.after(elA);
+  }
 });
 
 // Show total chat count (current + archive) on role screen with animation
@@ -1569,14 +2157,10 @@ window.muteNotes = function(hours) {
   showToast(`🔕 Notes popup ${hours} ঘণ্টার জন্য mute হয়েছে`);
 }
 
-// ── THREE DOT MENU ───────────────────────────────────────
-window.toggleDotMenu = function() {
-  const menu = document.getElementById("dot-menu");
-  menu.style.display = menu.style.display === "none" ? "block" : "none";
-}
+// ── THREE DOT MENU — handled by standalone script at bottom ──
 
 window.dotAction = function(action) {
-  document.getElementById("dot-menu").style.display = "none";
+  document.getElementById("dot-menu").classList.remove("menu-open");
   if (action === "search") openSearchPanel();
   else if (action === "games") openGamesPanel();
   else if (action === "theme") openThemePanel();
@@ -1587,6 +2171,62 @@ window.dotAction = function(action) {
   else if (action === "archive-now") archiveOldMessages();
   else if (action === "music") openMusicPanel();
 }
+
+// ── WEATHER PANEL ─────────────────────────────────────────
+const WEATHER_CONDITIONS = {
+  'sunny':        { icon:'☀️',  label:'Sunny',         feels: 3,  bg:'rgba(80,50,10,0.15)' },
+  'partly-cloudy':{ icon:'⛅',  label:'Partly Cloudy', feels: 2,  bg:'rgba(20,40,80,0.15)' },
+  'cloudy':       { icon:'☁️',  label:'Cloudy',        feels: 0,  bg:'rgba(30,30,60,0.15)' },
+  'rainy':        { icon:'🌧️', label:'Rainy',          feels:-2,  bg:'rgba(10,30,60,0.2)'  },
+  'stormy':       { icon:'⛈️', label:'Stormy',         feels:-3,  bg:'rgba(20,10,40,0.25)' },
+  'windy':        { icon:'🌬️', label:'Windy',          feels:-4,  bg:'rgba(30,40,60,0.15)' },
+  'foggy':        { icon:'🌫️', label:'Foggy',          feels:-1,  bg:'rgba(40,40,50,0.2)'  },
+  'snowy':        { icon:'❄️',  label:'Snowy',          feels:-5,  bg:'rgba(40,60,80,0.15)' },
+  'night-clear':  { icon:'🌙',  label:'Clear Night',   feels:-1,  bg:'rgba(10,10,30,0.25)' },
+};
+let currentWeather = { cond:'partly-cloudy', temp:24 };
+
+window.openWeatherPanel = function() {
+  document.getElementById('weather-panel').classList.add('open');
+  renderWeatherPanel();
+};
+window.closeWeatherPanel = function() {
+  document.getElementById('weather-panel').classList.remove('open');
+};
+window.selectWeatherCond = function(btn) {
+  document.querySelectorAll('.weather-cond-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  currentWeather.cond = btn.dataset.cond;
+  renderWeatherPanel();
+};
+window.updateWeatherTemp = function(val) {
+  currentWeather.temp = parseInt(val);
+  document.getElementById('wp-temp-val').textContent = val;
+  renderWeatherPanel();
+};
+function renderWeatherPanel() {
+  const w = WEATHER_CONDITIONS[currentWeather.cond] || WEATHER_CONDITIONS['partly-cloudy'];
+  const t = currentWeather.temp;
+  document.getElementById('wp-big-icon').textContent = w.icon;
+  document.getElementById('wp-temp-display').textContent = t;
+  document.getElementById('wp-label-display').textContent = w.label;
+  document.getElementById('wp-feels-display').textContent = `Feels like ${t + w.feels}°C`;
+  document.getElementById('wp-temp-val').textContent = t;
+  document.getElementById('wp-temp-slider').value = t;
+}
+window.saveWeather = function() {
+  const w = WEATHER_CONDITIONS[currentWeather.cond];
+  // Update header pill
+  document.getElementById('header-weather-icon').textContent = w.icon;
+  document.getElementById('header-weather-text').textContent = currentWeather.temp + '°';
+  closeWeatherPanel();
+  // Save to Firebase if available
+  try {
+    if (typeof db !== 'undefined' && typeof ref !== 'undefined' && typeof set !== 'undefined') {
+      set(ref(db, 'weather'), { cond: currentWeather.cond, temp: currentWeather.temp, ts: Date.now() });
+    }
+  } catch(e){}
+};
 
 // ── PLUS MENU ────────────────────────────────────────────
 let plusOpen = false;
@@ -1872,14 +2512,7 @@ function applyRestrictUI() {
   }
 }
 
-// Close dot menu when clicking outside
-document.addEventListener("click", e => {
-  const btn = document.getElementById("three-dot-btn");
-  const menu = document.getElementById("dot-menu");
-  if (menu && btn && !btn.contains(e.target) && !menu.contains(e.target)) {
-    menu.style.display = "none";
-  }
-});
+// Close dot menu when clicking outside — handled by standalone script below
 
 // ── GAME PRESENCE & TOAST ────────────────────────────────
 function updateGamePresence() {
@@ -2796,24 +3429,36 @@ window.clearCountdown = async function() {
   await set(countdownRef, null).catch(() => {});
   countdownDate = null;
   document.getElementById("countdown-bar").style.display = "none";
+  const banner = document.getElementById("milestone-banner");
+  if (banner) banner.style.display = "none";
   document.getElementById("countdown-input").value = "";
   document.getElementById("countdown-preview").textContent = "";
 }
 
 function updateCountdownBar() {
-  const bar = document.getElementById("countdown-bar");
-  if (!bar) return;
-  if (!countdownDate) { bar.style.display = "none"; return; }
+  const bar = document.getElementById("countdown-bar"); // keep hidden, compat
+  const banner = document.getElementById("milestone-banner");
+  const textEl = document.getElementById("milestone-text");
+  const iconEl = document.getElementById("milestone-icon");
+  if (!banner) return;
+  if (!countdownDate) { banner.style.display = "none"; return; }
   const start = new Date(countdownDate);
   const now = new Date();
   const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
   if (diff < 0) {
     const future = Math.abs(diff);
-    bar.textContent = `📅 ${future} দিন বাকি`;
+    iconEl.textContent = "⏳";
+    textEl.textContent = `${future} দিন বাকি`;
+  } else if (diff === 0) {
+    iconEl.textContent = "🎉";
+    textEl.textContent = "আজকের দিনটা বিশেষ!";
   } else {
-    bar.textContent = `📅 ${diff} দিন হয়েছে`;
+    // pick a nice icon based on milestone
+    const icons = ["✨","💫","🌸","💜","🌙","⭐","🩷","🌟"];
+    iconEl.textContent = icons[diff % icons.length];
+    textEl.textContent = `${diff} দিন সম্পন্ন হয়েছে`;
   }
-  bar.style.display = "block";
+  banner.style.display = "flex";
 }
 
 function updateCountdownPreview() {
@@ -2888,6 +3533,24 @@ function updatePresence() {
   }
 
   presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;"><span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span> ${status}</span>`;
+
+  // Update header pill
+  const pillText = document.getElementById("header-timer-display");
+  const pillDot  = document.getElementById("header-presence-dot");
+  if (pillText) {
+    if (diff < 10000) {
+      pillText.textContent = "Online";
+      if (pillDot) { pillDot.style.background = "#22ee66"; pillDot.style.boxShadow = "0 0 5px #22ee66"; }
+    } else {
+      const totalSec = Math.floor(diff / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      if (h > 0) pillText.textContent = h + "h " + m + "m ago";
+      else if (m > 0) pillText.textContent = m + "m ago";
+      else pillText.textContent = totalSec + "s ago";
+      if (pillDot) { pillDot.style.background = dotColor; pillDot.style.boxShadow = "none"; }
+    }
+  }
 }
 
 // ── SEEN ────────────────────────────────────────────────
@@ -4676,5 +5339,73 @@ window.sendEmergency = async function() {
 
 
 </script>
+<!-- DOT MENU — simple standalone script -->
+<script>
+(function() {
+  function toggle() {
+    var m = document.getElementById('dot-menu');
+    var backdrop = document.getElementById('dot-menu-backdrop');
+    var btn = document.getElementById('three-dot-btn');
+    if (!m || !btn) return;
+
+    if (m.classList.contains('menu-open')) {
+      m.classList.remove('menu-open');
+      if (backdrop) backdrop.classList.remove('menu-open');
+      return;
+    }
+
+    // Position menu relative to button's actual screen position
+    var rect = btn.getBoundingClientRect();
+    m.style.top  = (rect.bottom + 6) + 'px';
+    m.style.right = (window.innerWidth - rect.right) + 'px';
+    m.style.left = 'auto';
+    m.classList.add('menu-open');
+    if (backdrop) backdrop.classList.add('menu-open');
+
+    setTimeout(function() {
+      document.addEventListener('click', function handler(e) {
+        if (!m.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+          m.classList.remove('menu-open');
+          if (backdrop) backdrop.classList.remove('menu-open');
+        }
+        document.removeEventListener('click', handler);
+      });
+    }, 10);
+  }
+
+  window.toggleDotMenu = toggle;
+
+  window.dotAction = function(action) {
+    var m = document.getElementById('dot-menu');
+    if (m) m.classList.remove('menu-open');
+    var fns = {
+      search: window.openSearchPanel,
+      games: window.openGamesPanel,
+      theme: window.openThemePanel,
+      settings: window.openSettingsPanel,
+      restrict: window.openRestrictPanel,
+      gallery: window.openGallery,
+      'archive-view': window.openArchivePanel,
+      'archive-now': window.archiveOldMessages,
+      music: window.openMusicPanel,
+    };
+    if (fns[action]) fns[action]();
+  };
+})();
+</script>
+<div id="dot-menu-backdrop" onclick="toggleDotMenu()"></div>
+<div id="dot-menu">
+  <div class="dot-item" onclick="dotAction('search')"><span class="dot-item-icon">🔍</span>Search</div>
+  <div class="dot-item" onclick="dotAction('games')"><span class="dot-item-icon">🎮</span>Games</div>
+  <div class="dot-item" onclick="dotAction('music')"><span class="dot-item-icon">🎵</span>Synced Music</div>
+  <div class="dot-item" onclick="dotAction('theme')"><span class="dot-item-icon">🎨</span>Theme</div>
+  <div class="dot-item" onclick="dotAction('settings')"><span class="dot-item-icon">⚙️</span>Settings</div>
+  <div class="dot-item" onclick="dotAction('restrict')"><span class="dot-item-icon">🔇</span>Restrict</div>
+  <div class="dot-item" onclick="dotAction('gallery')"><span class="dot-item-icon">🖼️</span>Photos</div>
+  <div class="dot-item" onclick="dotAction('archive-view')"><span class="dot-item-icon">🗂️</span>Archive দেখো</div>
+  <div class="dot-item" id="dot-archive-btn" style="display:none;" onclick="dotAction('archive-now')"><span class="dot-item-icon">🗃️</span>Archive করো</div>
+  <div class="dot-item" onclick="window.location.href='chat-lite.html'"><span class="dot-item-icon">🌤️</span>Go to Light</div>
+  <div class="dot-item danger" onclick="toggleDotMenu();openEmergencyModal()"><span class="dot-item-icon">🆘</span>Emergency Call</div>
+</div>
 </body>
 </html>
