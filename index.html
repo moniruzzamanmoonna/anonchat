@@ -4635,13 +4635,40 @@ let emergencyDismissTs = 0;
 // ── OneSignal subscription ID Firebase-এ save করো ──
 async function saveOneSignalId(role) {
   try {
-    await new Promise(res => setTimeout(res, 2500));
-    if (!window.OneSignal) return;
-    await OneSignal.Notifications.requestPermission();
-    const id = await OneSignal.User.pushSubscription.id;
+    if (!window.OneSignal) { console.log('OneSignal not loaded'); return; }
+
+    // v16 API — subscription change listener দিয়ে ID নাও
+    const tryGetId = async () => {
+      // Method 1: onesignalId (v16 user ID)
+      let id = OneSignal.User.onesignalId;
+      // Method 2: pushSubscription token
+      if (!id) id = OneSignal.User.pushSubscription?.token;
+      // Method 3: pushSubscription id
+      if (!id) id = OneSignal.User.pushSubscription?.id;
+      return id;
+    };
+
+    let id = await tryGetId();
+
+    if (!id) {
+      // Subscription change হলে ID নাও
+      OneSignal.User.pushSubscription.addEventListener('change', async (event) => {
+        const newId = event.current?.id || event.current?.token || OneSignal.User.onesignalId;
+        if (newId) {
+          await set(ref(db, `osTokens/${role}`), newId);
+          console.log('OneSignal ID saved via listener:', role, newId);
+        }
+      });
+      // 3 সেকেন্ড পরে আবার try
+      await new Promise(res => setTimeout(res, 3000));
+      id = await tryGetId();
+    }
+
     if (id) {
       await set(ref(db, `osTokens/${role}`), id);
-      console.log('OneSignal ID saved:', role, id);
+      console.log('✅ OneSignal ID saved:', role, id);
+    } else {
+      console.log('❌ OneSignal ID still null for role:', role);
     }
   } catch(e) { console.log('OneSignal save error:', e); }
 }
@@ -4678,35 +4705,32 @@ async function setupEmergencyNotifications(role) {
 }
 
 window.enableNotification = async function() {
-  // Step 1: Browser notification permission
   if (!('Notification' in window)) {
     alert('এই browser-এ notification support নেই।'); return;
   }
-  
+
   let perm = Notification.permission;
   if (perm === 'default') {
     perm = await Notification.requestPermission();
   }
-  
+
   if (perm === 'denied') {
     alert('⚠️ Notification blocked!\n\nChrome → address bar-এর 🔒 icon → Site settings → Notifications → Allow করো।');
     return;
   }
 
   if (perm === 'granted') {
-    // Step 2: OneSignal ID save করো
-    if (window.OneSignal) {
-      try {
-        const id = await OneSignal.User.pushSubscription.id;
-        if (id) {
-          await set(ref(db, `osTokens/${myRole}`), id);
-          alert('✅ Notification চালু হয়েছে!');
-          return;
-        }
-      } catch(e) { console.log('OneSignal ID error:', e); }
+    showToast('⏳ OneSignal ID নিচ্ছে...');
+    await saveOneSignalId(myRole);
+
+    // Firebase-এ save হয়েছে কিনা check করো
+    const snap = await get(ref(db, `osTokens/${myRole}`));
+    const savedId = snap.val();
+    if (savedId) {
+      alert('✅ Notification চালু হয়েছে!\nID: ' + savedId.substring(0, 20) + '...');
+    } else {
+      alert('⚠️ ID save হয়নি। Site টা একবার বন্ধ করে আবার খোলো, তারপর আবার try করো।');
     }
-    // OneSignal না থাকলেও permission granted দেখাও
-    alert('✅ Permission দেওয়া হয়েছে! OneSignal sync হতে একটু সময় লাগবে।');
   }
 };
 
