@@ -4658,13 +4658,13 @@ window.sendEmergency = async function() {
       body: 'Chat এ আসো এখনই! 🚨'
     });
     if (res.ok) {
-      showToast('✅ Emergency পাঠানো হয়েছে! (topic: ' + otherTopic + ')');
+      alert('✅ ntfy sent! topic: ' + otherTopic);
     } else {
-      showToast('❌ ntfy error: ' + res.status);
+      alert('❌ ntfy error: ' + res.status);
     }
     console.log('ntfy response:', res.status, otherTopic);
   } catch(e) {
-    showToast('❌ Network error: ' + e.message);
+    alert('❌ Network error: ' + e.message);
     console.log('ntfy error:', e);
   }
 
