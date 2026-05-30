@@ -32,7 +32,7 @@
       appId: "5246d53f-ef34-4e37-8252-c18602e7262e",
       notifyButton: { enable: false },
       allowLocalhostAsSecureOrigin: true,
-      serviceWorkerPath: "OneSignalSDKWorker.js",
+      serviceWorkerPath: "/anonchat/OneSignalSDKWorker.js",
       serviceWorkerParam: { scope: "/anonchat/" },
     });
   });
@@ -888,27 +888,9 @@ function checkCode() {
 
 // Register Service Worker — supports Push notifications
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/firebase-messaging-sw.js').then(reg => {
-    console.log('SW registered:', reg.scope);
-  }).catch(err => {
-    // Fallback blob SW (no push support)
-    const swCode = `
-      self.addEventListener('install', e => self.skipWaiting());
-      self.addEventListener('activate', e => self.clients.claim());
-      self.addEventListener('fetch', e => {});
-      self.addEventListener('notificationclick', e => {
-        e.notification.close();
-        e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(cls => {
-          for (const c of cls) { if ('focus' in c) return c.focus(); }
-          if (clients.openWindow) return clients.openWindow('/');
-        }));
-      });
-    `;
-    const swBlob = new Blob([swCode], { type: 'application/javascript' });
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).then(() => {
-      console.log('Fallback SW registered');
-    }).catch(e2 => console.log('SW error:', e2));
-  });
+  navigator.serviceWorker.register('/anonchat/OneSignalSDKWorker.js', { scope: '/anonchat/' })
+    .then(reg => console.log('OneSignal SW registered:', reg.scope))
+    .catch(err => console.log('SW error:', err));
 }
 </script>
 
