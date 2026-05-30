@@ -4647,7 +4647,8 @@ window.sendEmergency = async function() {
 
   // ২. ntfy push (tab বন্ধ থাকলেও phone-এ notification আসবে)
   try {
-    await fetch(`https://ntfy.sh/${otherTopic}`, {
+    const otherName = nicknames[otherRole] || (otherRole === 'A' ? 'Star' : 'Moon');
+    const res = await fetch(`https://ntfy.sh/${otherTopic}`, {
       method: 'POST',
       headers: {
         'Title': `An urgent call from ${myName}`,
@@ -4656,8 +4657,16 @@ window.sendEmergency = async function() {
       },
       body: 'Chat এ আসো এখনই! 🚨'
     });
-    console.log('ntfy sent to:', otherTopic);
-  } catch(e) { console.log('ntfy error:', e); }
+    if (res.ok) {
+      showToast('✅ Emergency পাঠানো হয়েছে! (topic: ' + otherTopic + ')');
+    } else {
+      showToast('❌ ntfy error: ' + res.status);
+    }
+    console.log('ntfy response:', res.status, otherTopic);
+  } catch(e) {
+    showToast('❌ Network error: ' + e.message);
+    console.log('ntfy error:', e);
+  }
 
   if ('vibrate' in navigator) navigator.vibrate([100,50,100]);
 };
