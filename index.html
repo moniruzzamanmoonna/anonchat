@@ -4651,12 +4651,11 @@ window.sendEmergency = async function() {
     const res = await fetch(`https://ntfy.sh/${otherTopic}`, {
       method: 'POST',
       headers: {
-        'Title': `An urgent call from ${myName}`,
+        'Title': 'Emergency SOS',
         'Priority': 'urgent',
         'Tags': 'rotating_light',
-        'Content-Type': 'text/plain; charset=utf-8',
       },
-      body: 'Come to chat now!'
+      body: 'An urgent call! Come to chat now!'
     });
     if (res.ok) {
       alert('✅ ntfy sent! topic: ' + otherTopic);
