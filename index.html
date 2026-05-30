@@ -2892,7 +2892,7 @@ function updatePresence() {
   const presenceEl = document.getElementById("other-presence");
 
   if (!p || !p.last) {
-    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(30,30,60,0.5);border:1px solid #222244;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;">${ICONS[myRole]} ${myName}${myMood} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:#333355;display:inline-block;"></span>&nbsp; অপেক্ষায়</span>`;
+    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(30,30,60,0.5);border:1px solid #222244;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;"><span style="width:7px;height:7px;border-radius:50%;background:#333355;display:inline-block;"></span> Waiting...</span>`;
     typingEl.style.display = "none";
     return;
   }
@@ -2911,24 +2911,24 @@ function updatePresence() {
     dotColor = "#22ee66";
     bgColor = "rgba(20,60,30,0.6)";
     borderColor = "#1a5a30";
-  } else if (diff < 60000) {
-    status = Math.floor(diff/1000) + " সেকেন্ড আগে";
-    dotColor = "#ffaa22";
-    bgColor = "rgba(50,40,10,0.5)";
-    borderColor = "#554420";
-  } else if (diff < 3600000) {
-    status = Math.floor(diff/60000) + " মিনিট আগে";
-    dotColor = "#ff6644";
-    bgColor = "rgba(50,20,10,0.5)";
-    borderColor = "#552010";
   } else {
-    status = Math.floor(diff/3600000) + " ঘণ্টা আগে";
-    dotColor = "#555";
-    bgColor = "rgba(30,30,40,0.5)";
-    borderColor = "#333";
+    const totalSec = Math.floor(diff / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    let timeStr = "Last Active ";
+    if (h > 0) timeStr += h + " hour" + (h > 1 ? "s" : "") + " ";
+    if (m > 0) timeStr += m + " minute" + (m > 1 ? "s" : "") + " ";
+    if (h === 0 && m === 0) timeStr += s + " second" + (s > 1 ? "s" : "") + " ";
+    timeStr += "ago";
+    status = timeStr;
+
+    if (diff < 60000) { dotColor = "#ffaa22"; bgColor = "rgba(50,40,10,0.5)"; borderColor = "#554420"; }
+    else if (diff < 3600000) { dotColor = "#ff6644"; bgColor = "rgba(50,20,10,0.5)"; borderColor = "#552010"; }
+    else { dotColor = "#555"; bgColor = "rgba(30,30,40,0.5)"; borderColor = "#333"; }
   }
 
-  presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;">${ICONS[myRole]} ${myName}${myMood} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span>&nbsp; ${status}</span>`;
+  presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;"><span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span> ${status}</span>`;
 }
 
 // ── SEEN ────────────────────────────────────────────────
