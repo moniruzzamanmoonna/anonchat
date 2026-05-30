@@ -19,24 +19,6 @@
 <title>🌙 Anon Chat</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a1a">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Anon Chat">
-<link rel="apple-touch-icon" href="icon-192.png">
-<!-- OneSignal SDK -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "5246d53f-ef34-4e37-8252-c18602e7262e",
-      notifyButton: { enable: false },
-      allowLocalhostAsSecureOrigin: true,
-      serviceWorkerPath: "/anonchat/OneSignalSDKWorker.js",
-      serviceWorkerParam: { scope: "/anonchat/" },
-    });
-  });
-</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -340,7 +322,6 @@
           <div class="dot-item" onclick="dotAction('gallery')">🖼️ &nbsp;Photos</div>
           <div class="dot-item" onclick="dotAction('archive-view')">🗂️ &nbsp;Archive দেখো</div>
           <div class="dot-item" id="dot-archive-btn" style="display:none;" onclick="dotAction('archive-now')">🗃️ &nbsp;Archive করো</div>
-          <div class="dot-item" onclick="toggleDotMenu();enableNotification()">🔔 &nbsp;Notification চালু করো</div>
           <div class="dot-item" style="color:#ff6666;" onclick="toggleDotMenu();openEmergencyModal()">🆘 &nbsp;Emergency Call</div>
         </div>
       </div>
@@ -887,11 +868,7 @@ function checkCode() {
 }
 
 // Register Service Worker — supports Push notifications
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/anonchat/OneSignalSDKWorker.js', { scope: '/anonchat/' })
-    .then(reg => console.log('OneSignal SW registered:', reg.scope))
-    .catch(err => console.log('SW error:', err));
-}
+// Service worker not needed for ntfy
 </script>
 
 <!-- YouTube IFrame API (loaded dynamically when music panel opens) -->
@@ -4613,57 +4590,14 @@ window.musicRemoveFromQueue = function(idx) {
 
 
 // ═══════════════════════════════════════════════════════
-// ── EMERGENCY CALL SYSTEM (OneSignal) ──────────────────
+// ── EMERGENCY CALL SYSTEM (ntfy.sh) ────────────────────
 // ═══════════════════════════════════════════════════════
 
-const ONESIGNAL_APP_ID  = "5246d53f-ef34-4e37-8252-c18602e7262e";
-const ONESIGNAL_REST_KEY = "os_v2_app_kjdnkp7pgrhdpassygdafzzgfzy7nqvk6cfej2v65kyct5elbmjwkazmmb5dpmiwnpzzsr54mwve6kpxzhlefahin3k6brhmfnac2by";
+const NTFY_TOPICS = { A: "anonchat_star", B: "anonchat_moon" };
 
 let emergencyUnlisten = null;
 let emergencyDismissTs = 0;
 
-// ── OneSignal subscription ID Firebase-এ save করো ──
-async function saveOneSignalId(role) {
-  try {
-    if (!window.OneSignal) { console.log('OneSignal not loaded'); return; }
-
-    // v16 API — subscription change listener দিয়ে ID নাও
-    const tryGetId = async () => {
-      // Method 1: onesignalId (v16 user ID)
-      let id = OneSignal.User.onesignalId;
-      // Method 2: pushSubscription token
-      if (!id) id = OneSignal.User.pushSubscription?.token;
-      // Method 3: pushSubscription id
-      if (!id) id = OneSignal.User.pushSubscription?.id;
-      return id;
-    };
-
-    let id = await tryGetId();
-
-    if (!id) {
-      // Subscription change হলে ID নাও
-      OneSignal.User.pushSubscription.addEventListener('change', async (event) => {
-        const newId = event.current?.id || event.current?.token || OneSignal.User.onesignalId;
-        if (newId) {
-          await set(ref(db, `osTokens/${role}`), newId);
-          console.log('OneSignal ID saved via listener:', role, newId);
-        }
-      });
-      // 3 সেকেন্ড পরে আবার try
-      await new Promise(res => setTimeout(res, 3000));
-      id = await tryGetId();
-    }
-
-    if (id) {
-      await set(ref(db, `osTokens/${role}`), id);
-      console.log('✅ OneSignal ID saved:', role, id);
-    } else {
-      console.log('❌ OneSignal ID still null for role:', role);
-    }
-  } catch(e) { console.log('OneSignal save error:', e); }
-}
-
-// ── Emergency banner (tab খোলা থাকলে) ──
 function showEmergencyBanner(senderName) {
   const banner = document.getElementById('emergency-incoming');
   const nameEl = document.getElementById('emerg-incoming-name');
@@ -4675,7 +4609,6 @@ function showEmergencyBanner(senderName) {
   if ('vibrate' in navigator) navigator.vibrate([300,100,300,100,300,100,600]);
 }
 
-// ── Firebase listener (tab খোলা থাকলে real-time) ──
 function listenEmergency(role) {
   if (emergencyUnlisten) emergencyUnlisten();
   emergencyUnlisten = onValue(ref(db, 'emergency'), snap => {
@@ -4691,38 +4624,7 @@ function listenEmergency(role) {
 
 async function setupEmergencyNotifications(role) {
   listenEmergency(role);
-  await saveOneSignalId(role);
 }
-
-window.enableNotification = async function() {
-  if (!('Notification' in window)) {
-    alert('এই browser-এ notification support নেই।'); return;
-  }
-
-  let perm = Notification.permission;
-  if (perm === 'default') {
-    perm = await Notification.requestPermission();
-  }
-
-  if (perm === 'denied') {
-    alert('⚠️ Notification blocked!\n\nChrome → address bar-এর 🔒 icon → Site settings → Notifications → Allow করো।');
-    return;
-  }
-
-  if (perm === 'granted') {
-    showToast('⏳ OneSignal ID নিচ্ছে...');
-    await saveOneSignalId(myRole);
-
-    // Firebase-এ save হয়েছে কিনা check করো
-    const snap = await get(ref(db, `osTokens/${myRole}`));
-    const savedId = snap.val();
-    if (savedId) {
-      alert('✅ Notification চালু হয়েছে!\nID: ' + savedId.substring(0, 20) + '...');
-    } else {
-      alert('⚠️ ID save হয়নি। Site টা একবার বন্ধ করে আবার খোলো, তারপর আবার try করো।');
-    }
-  }
-};
 
 window.dismissEmergencyBanner = function() {
   emergencyDismissTs = Date.now();
@@ -4735,39 +4637,27 @@ window.sendEmergency = async function() {
   closeEmergencyModal();
   if (!myRole) return;
   const otherRole = myRole === 'A' ? 'B' : 'A';
-  const myName    = nicknames[myRole] || (myRole === 'A' ? 'Star' : 'Moon');
+  const myName = nicknames[myRole] || (myRole === 'A' ? 'Star' : 'Moon');
+  const otherTopic = NTFY_TOPICS[otherRole];
 
   // ১. Firebase (tab খোলা থাকলে real-time banner)
   await set(ref(db, 'emergency'), {
     target: otherRole, sender: myRole, senderName: myName, ts: Date.now()
   });
 
-  // ২. OneSignal push (tab বন্ধ থাকলে phone-এ notification)
+  // ২. ntfy push (tab বন্ধ থাকলেও phone-এ notification আসবে)
   try {
-    const snap = await get(ref(db, `osTokens/${otherRole}`));
-    const otherId = snap.val();
-    if (otherId) {
-      await fetch('https://onesignal.com/api/v1/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Basic ${ONESIGNAL_REST_KEY}`
-        },
-        body: JSON.stringify({
-          app_id:                       ONESIGNAL_APP_ID,
-          include_subscription_ids:     [otherId],
-          headings:                     { en: `🚨 An urgent call from ${myName}` },
-          contents:                     { en: `Chat এ আসো এখনই!` },
-          priority:                     10,
-          ttl:                          60,
-          url:                          'https://moniruzzamanmoonna.github.io/anonchat'
-        })
-      });
-      console.log('OneSignal push sent!');
-    } else {
-      console.log('No OneSignal ID for other role');
-    }
-  } catch(e) { console.log('OneSignal send error:', e); }
+    await fetch(`https://ntfy.sh/${otherTopic}`, {
+      method: 'POST',
+      headers: {
+        'Title': `An urgent call from ${myName}`,
+        'Priority': 'urgent',
+        'Tags': 'rotating_light',
+      },
+      body: 'Chat এ আসো এখনই! 🚨'
+    });
+    console.log('ntfy sent to:', otherTopic);
+  } catch(e) { console.log('ntfy error:', e); }
 
   if ('vibrate' in navigator) navigator.vibrate([100,50,100]);
 };
