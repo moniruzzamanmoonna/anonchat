@@ -316,18 +316,14 @@
 <!-- CHAT -->
 <div id="chat-screen">
   <div class="chat-header">
-    <div class="header-left">
-      <div class="header-top">
-        <span id="my-icon" style="font-size:18px"></span>
-        <span class="header-name" id="my-label"></span>
-        <span id="my-mood" style="font-size:16px;margin-left:4px;"></span>
-      </div>
-      <div class="header-presence" id="other-presence"></div>
-      <div id="countdown-bar" style="display:none;font-size:11px;color:var(--title,#c0b0ff);margin-top:2px;"></div>
+    <button class="btn-small" onclick="goBack()" style="flex-shrink:0;padding:6px 10px;">←</button>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="font-size:15px;color:var(--title,#c0b0ff);font-weight:500;letter-spacing:0.5px;" id="other-name-header">—</div>
+      <div id="other-presence"></div>
+      <div id="countdown-bar" style="display:none;font-size:11px;color:var(--title,#c0b0ff);"></div>
     </div>
-    <div class="header-right">
-      <span class="msg-count">💬 <span id="msg-count">0</span></span>
-      <button class="btn-small" onclick="goBack()">← ফিরে</button>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <span class="msg-count" style="font-size:12px;">💬 <span id="msg-count">0</span></span>
       <div style="position:relative;">
         <button class="btn-small" id="three-dot-btn" onclick="toggleDotMenu()" style="font-size:18px;padding:2px 10px;letter-spacing:1px;">⋮</button>
         <div id="dot-menu" style="display:none;position:absolute;right:0;top:110%;background:var(--header-bg,rgba(10,10,30,0.98));border:1px solid #3a3a6a;border-radius:12px;min-width:170px;z-index:400;box-shadow:0 8px 24px rgba(0,0,0,0.5);overflow:hidden;">
@@ -2882,18 +2878,24 @@ function updatePresence() {
   const typingText = document.getElementById("typing-text");
   const otherName = nicknames[other] || (other === "A" ? "Star" : "Moon");
   const otherMood = moods[other] ? " " + moods[other] : "";
-  const otherLabel = ICONS[other] + " " + otherName + otherMood;
+  const myName = nicknames[myRole] || (myRole === "A" ? "Star" : "Moon");
+  const myMood = moods[myRole] ? " " + moods[myRole] : "";
+
+  // Update header title = other person's name
+  const nameHeader = document.getElementById("other-name-header");
+  if (nameHeader) nameHeader.textContent = ICONS[other] + " " + otherName + otherMood;
+
   const presenceEl = document.getElementById("other-presence");
 
   if (!p || !p.last) {
-    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(40,40,80,0.5);border:1px solid #333;border-radius:20px;padding:2px 10px;font-size:11px;color:#666;">${otherLabel} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:#444;display:inline-block;"></span> অফলাইন</span>`;
+    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(30,30,60,0.5);border:1px solid #222244;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;">${ICONS[myRole]} ${myName}${myMood} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:#333355;display:inline-block;"></span>&nbsp; অপেক্ষায়</span>`;
     typingEl.style.display = "none";
     return;
   }
 
   if (p.typing && (Date.now() - Number(p.last)) < 5000) {
     typingEl.style.display = "flex";
-    typingText.textContent = otherLabel + " লিখছে...";
+    typingText.textContent = otherName + " লিখছে...";
   } else {
     typingEl.style.display = "none";
   }
@@ -2922,7 +2924,7 @@ function updatePresence() {
     borderColor = "#333";
   }
 
-  presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:2px 10px;font-size:11px;color:#ccc;">${otherLabel} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 5px '+dotColor:''}"></span> ${status}</span>`;
+  presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;">${ICONS[myRole]} ${myName}${myMood} &nbsp;<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span>&nbsp; ${status}</span>`;
 }
 
 // ── SEEN ────────────────────────────────────────────────
