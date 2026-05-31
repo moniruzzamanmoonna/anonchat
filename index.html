@@ -1525,6 +1525,7 @@ const fcmTokensRef = ref(db, "fcmTokens");
 // ── STATE ───────────────────────────────────────────────
 let myRole = null;
 let allMessages = [];
+let liteMsgs = [];  // chat_lite/messages থেকে আসা messages
 let replyTo = null;
 let lastSeenTs = 0;
 let ctxMsg = null;
@@ -1699,9 +1700,14 @@ window.selectRole = function(role) {
   presenceInterval = setInterval(pingPresence, presenceIntervalMs);
   pingPresence();
 
-  // Lite এখন same "messages" path use করে — আলাদা count লাগবে না
-  unsubLiteMsgs = null;
-  liteMsgCount = 0;
+  // Lite (chat_lite/messages) থেকে messages load করে main-এ merge করো
+  unsubLiteMsgs = onValue(query(liteMsgsRef, limitToLast(50)), snap => {
+    liteMsgs = [];
+    snap.forEach(c => liteMsgs.push({ key: 'lite_' + c.key, ...c.val(), _fromLite: true }));
+    const mainMsgs = allMessages.filter(m => !m._fromLite);
+    allMessages = [...mainMsgs, ...liteMsgs].sort((a, b) => Number(a.ts) - Number(b.ts));
+    renderMessages();
+  });
 
   // Tab/browser বন্ধ হলে presence reset করো
   const myPresRef = ref(db, `presence/${myRole}`);
@@ -1753,6 +1759,7 @@ window.goBack = function() {
   if (emergencyUnlisten) { emergencyUnlisten(); emergencyUnlisten = null; }
   if (unsubLiteMsgs) { unsubLiteMsgs(); unsubLiteMsgs = null; }
   liteMsgCount = 0;
+  liteMsgs = [];
   const eBtn = document.getElementById('emergency-btn');
   if (eBtn) eBtn.style.display = 'none';
   clearInterval(restrictCountdownInterval);
@@ -3546,7 +3553,7 @@ function updatePresence() {
 
   const presenceEl = document.getElementById("other-presence");
 
-  if (!p || !p.last || p.online === false) {
+  if (!p || !p.last) {
     presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(20,20,30,0.5);border:1px solid #333344;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;"><span style="width:7px;height:7px;border-radius:50%;background:#444455;display:inline-block;"></span> Offline</span>`;
     typingEl.style.display = "none";
     const pillText = document.getElementById("header-timer-display");
@@ -3564,8 +3571,8 @@ function updatePresence() {
   }
 
   const diff = Date.now() - Number(p.last);
-  // online flag true থাকলে এবং diff ৩০ সেকেন্ডের মধ্যে হলে Online দেখাও
-  const isOnline = p.online === true && diff < 30000;
+  
+  const isOnline = diff < 30000; // শুধু timestamp দিয়ে online check — Lite+Main দুটোই কাজ করবে
   let status, dotColor, bgColor, borderColor;
   if (isOnline || diff < 10000) {
     status = "Online";
@@ -3659,7 +3666,7 @@ function updateSeen() {
 function renderMessages() {
   const container = document.getElementById("messages");
   const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
-  document.getElementById("msg-count").textContent = allMessages.length + liteMsgCount;
+  document.getElementById("msg-count").textContent = allMessages.length;
 
   if (!allMessages.length) {
     container.innerHTML = `<div class="empty-state">🌙<br>এখনো কোনো কথা নেই<br><span style="font-size:12px;color:#2a2a4a">প্রথম কথা বলো...</span></div>`;
