@@ -217,7 +217,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 </script>
 <script type="module">
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, push, onValue, update, remove, set, get } from "firebase/database";
+import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast } from "firebase/database";
 
 const FB = { apiKey:"AIzaSyBMTgqiX7AQQ5wyqMAb6oBl5cYaDXLYwQA", authDomain:"anon-chat-e6476.firebaseapp.com", databaseURL:"https://anon-chat-e6476-default-rtdb.firebaseio.com", projectId:"anon-chat-e6476", storageBucket:"anon-chat-e6476.firebasestorage.app", messagingSenderId:"416773751234", appId:"1:416773751234:web:fb29f0f7a4c49c45d7565b" };
 const SECRET="moonstar2025", ICONS={A:"★",B:"☽"};
@@ -268,14 +268,14 @@ function init(){
   unsubs.push(onValue(nickRef,s=>{ const d=s.val()||{}; nicks.A=d.A||'Star'; nicks.B=d.B||'Moon'; updateHeader(); refreshNickInputs(); }));
   unsubs.push(onValue(themeRef,s=>applyTheme(s.val()||'dark')));
   unsubs.push(onValue(bwRef,s=>{ bwords=Object.values(s.val()||{}); renderBwords(); }));
-  unsubs.push(onValue(msgsRef,s=>{ msgs=[]; s.forEach(c=>msgs.push({id:c.key,...c.val()})); renderMsgs(); markSeen(); }));
+  unsubs.push(onValue(query(msgsRef,limitToLast(50)),s=>{ msgs=[]; s.forEach(c=>msgs.push({id:c.key,...c.val()})); renderMsgs(); markSeen(); }));
   unsubs.push(onValue(emergRef,s=>{ const d=s.val(); if(!d||d.target!==role||(d.ts||0)<=emergDismissTs||Date.now()-(d.ts||0)>30000) return; showEmergBanner(d.senderName||'অপর জন'); }));
   unsubs.push(onValue(topicRef,s=>{ ntfyTopics={A:"anonchat_star",B:"anonchat_moon",...(s.val()||{})}; $('my-topic').value=ntfyTopics[role]||''; }));
 }
 
 // ── PRESENCE ──
 function startPresence(){
-  function ping(typing=false){ set(ref(db,`presence/${role}`),{last:Date.now(),typing}); }
+  function ping(typing=false){ set(ref(db,`presence/${role}`),{last:Date.now(),typing,online:true}); }
   ping();
   presTimer=setInterval(()=>{ ping(); updateHeader(); },8000);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
@@ -516,7 +516,7 @@ window.viewArchive = async function(id) {
       const name = nicks[m.role]||(m.role==='A'?'Star':'Moon');
       const time = m.ts ? new Date(m.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '';
       return `<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:4px;">
-        <div style="background:${isMe?'var(--ba)':'var(--bb)'};border-radius:12px;padding:8px 12px;font-size:13px;max-width:80%;word-break:break-word;">${m.img?`<img src="${m.img}" style="max-width:160px;border-radius:8px;">`:escHtml(m.text||'')}</div>
+        <div style="background:${isMe?'var(--ba)':'var(--bb)'};border-radius:12px;padding:8px 12px;font-size:13px;max-width:80%;word-break:break-word;">${m.img?`<img src="${m.img}" style="max-width:160px;border-radius:8px;">`:esc(m.text||'')}</div>
         <div style="font-size:10px;color:var(--sub);margin-top:2px;">${name} · ${time}</div>
       </div>`;
     }).join('')}
