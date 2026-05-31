@@ -1699,11 +1699,9 @@ window.selectRole = function(role) {
   presenceInterval = setInterval(pingPresence, presenceIntervalMs);
   pingPresence();
 
-  // Lite version message count subscribe করো
-  unsubLiteMsgs = onValue(liteMsgsRef, snap => {
-    liteMsgCount = snap.size || 0;
-    document.getElementById("msg-count").textContent = allMessages.length + liteMsgCount;
-  });
+  // Lite এখন same "messages" path use করে — আলাদা count লাগবে না
+  unsubLiteMsgs = null;
+  liteMsgCount = 0;
 
   // Tab/browser বন্ধ হলে presence reset করো
   const myPresRef = ref(db, `presence/${myRole}`);
