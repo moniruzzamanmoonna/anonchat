@@ -217,7 +217,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 </script>
 <script type="module">
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast } from "firebase/database";
+import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, onDisconnect } from "firebase/database";
 
 const FB = { apiKey:"AIzaSyBMTgqiX7AQQ5wyqMAb6oBl5cYaDXLYwQA", authDomain:"anon-chat-e6476.firebaseapp.com", databaseURL:"https://anon-chat-e6476-default-rtdb.firebaseio.com", projectId:"anon-chat-e6476", storageBucket:"anon-chat-e6476.firebasestorage.app", messagingSenderId:"416773751234", appId:"1:416773751234:web:fb29f0f7a4c49c45d7565b" };
 const SECRET="moonstar2025", ICONS={A:"★",B:"☽"};
@@ -225,7 +225,7 @@ const EMOJIS=['🤍','🙂','😑','😆','😮','😢','👍','🥀','🪦'];
 const CLOUD="djado1b65", PRESET="voiceee";
 
 const app=initializeApp(FB), db=getDatabase(app);
-const msgsRef=ref(db,"messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
+const msgsRef=ref(db,"chat_lite/messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
 const themeRef=ref(db,"theme"), bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics");
 
 let role=null, nicks={A:"Star",B:"Moon"}, theme="dark";
@@ -277,6 +277,8 @@ function init(){
 function startPresence(){
   function ping(typing=false){ set(ref(db,`presence/${role}`),{last:Date.now(),typing,online:true}); }
   ping();
+  // Browser বন্ধ হলে presence null করো
+  onDisconnect(ref(db,`presence/${role}`)).remove().catch(()=>{});
   presTimer=setInterval(()=>{ ping(); updateHeader(); },8000);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
   unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); }));
@@ -330,7 +332,7 @@ function renderMsgs(){
 
 function markSeen(){
   const other=role==='A'?'B':'A';
-  msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>update(ref(db,`messages/${m.id}`),{seen:true}));
+  msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>update(ref(db,`chat_lite/messages/${m.id}`),{seen:true}));
 }
 
 // ── SEND ──
@@ -392,11 +394,11 @@ $('ctx-copy').onclick=()=>{
 };
 $('ctx-del').onclick=async()=>{
   if(!ctxMsg||ctxMsg.role!==role){toast('❌ Cannot delete');hideCtx();return;}
-  await remove(ref(db,`messages/${ctxMsg.id}`)); hideCtx();
+  await remove(ref(db,`chat_lite/messages/${ctxMsg.id}`)); hideCtx();
 };
 
 async function addReact(id,emoji){
-  await update(ref(db,`messages/${id}/reactions`),{[role]:emoji});
+  await update(ref(db,`chat_lite/messages/${id}/reactions`),{[role]:emoji});
 }
 
 // ── SETTINGS ──
