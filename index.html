@@ -295,10 +295,19 @@
   .stats-live-dot {
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: #cc4466;
-    box-shadow: 0 0 5px #cc4466;
+    background: #444466;
     flex-shrink: 0;
     animation: livePulse 1.2s infinite;
+  }
+  .stats-live-dot.online {
+    background: #22ee66;
+    box-shadow: 0 0 5px #22ee66;
+  }
+  .stats-live-dot.away {
+    background: #ffaa22;
+  }
+  .stats-live-dot.long-away {
+    background: #ff6644;
   }
   @keyframes livePulse {
     0%,100%{ opacity:1; } 50%{ opacity:0.3; }
@@ -1298,6 +1307,20 @@
       </div>
     </div>
 
+
+    <!-- Presence Interval -->
+    <div style="background:rgba(25,20,50,0.7);border:1px solid #2a2a5a;border-radius:14px;padding:14px 16px;">
+      <div style="font-size:12px;color:var(--title,#c0b0ff);font-weight:600;margin-bottom:4px;letter-spacing:1px;">🟢 PRESENCE UPDATE</div>
+      <div style="font-size:12px;color:#555577;margin-bottom:12px;">কতক্ষণ পর পর last seen update হবে</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;" id="presence-interval-btns">
+        <button onclick="setPresenceInterval(1000)"  class="pres-btn" data-val="1000"  style="flex:1;min-width:60px;padding:9px 4px;border-radius:10px;border:1px solid #3a3a6a;background:rgba(30,20,60,0.6);color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s;">1s</button>
+        <button onclick="setPresenceInterval(5000)"  class="pres-btn" data-val="5000"  style="flex:1;min-width:60px;padding:9px 4px;border-radius:10px;border:1px solid #3a3a6a;background:rgba(30,20,60,0.6);color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s;">5s</button>
+        <button onclick="setPresenceInterval(30000)" class="pres-btn" data-val="30000" style="flex:1;min-width:60px;padding:9px 4px;border-radius:10px;border:1px solid #3a3a6a;background:rgba(30,20,60,0.6);color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s;">30s</button>
+        <button onclick="setPresenceInterval(60000)" class="pres-btn" data-val="60000" style="flex:1;min-width:60px;padding:9px 4px;border-radius:10px;border:1px solid #3a3a6a;background:rgba(30,20,60,0.6);color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s;">1m</button>
+      </div>
+      <div id="pres-interval-note" style="font-size:11px;color:#555577;margin-top:10px;text-align:center;"></div>
+    </div>
+
     <!-- Countdown -->
     <div style="background:rgba(25,20,50,0.7);border:1px solid #2a2a5a;border-radius:14px;padding:14px 16px;">
       <div style="font-size:12px;color:var(--title,#c0b0ff);font-weight:600;margin-bottom:6px;letter-spacing:1px;">📅 SPECIAL DATE</div>
@@ -1458,7 +1481,7 @@ function checkCode() {
 <!-- Firebase SDKs -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, orderByKey, endBefore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, orderByKey, endBefore, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 
 // ── CONFIG ──────────────────────────────────────────────
@@ -1483,6 +1506,7 @@ const CLOUDINARY_CLOUD_NAME = "djado1b65";
 const CLOUDINARY_UPLOAD_PRESET = "voiceee";
 
 const msgsRef = ref(db, "messages");
+const liteMsgsRef = ref(db, "chat_lite/messages");
 const presenceRef = ref(db, "presence");
 const themeRef = ref(db, "theme");
 const nicknameRef = ref(db, "nicknames");
@@ -1505,6 +1529,8 @@ let replyTo = null;
 let lastSeenTs = 0;
 let ctxMsg = null;
 let lastMsgCount = 0;
+let liteMsgCount = 0;
+let unsubLiteMsgs = null;
 let presenceData = {};
 let isTyping = false;
 let typingTimeout = null;
@@ -1514,6 +1540,7 @@ let touchMoved = false, swipeActive = false;
 let unsubMessages = null, unsubPresence = null, unsubTheme = null;
 let unsubNickname = null, unsubMood = null, unsubCountdown = null, unsubNotes = null, unsubPin = null, unsubRestrict = null, unsubBannedWords = null;
 let presenceInterval = null;
+let presenceIntervalMs = parseInt(localStorage.getItem("presenceIntervalMs") || "5000");
 let countdownInterval = null;
 let nicknames = { A: "Star", B: "Moon" };
 let moods = { A: "", B: "" };
@@ -1669,8 +1696,20 @@ window.selectRole = function(role) {
   });
 
   startListeners();
-  presenceInterval = setInterval(pingPresence, 5000);
+  presenceInterval = setInterval(pingPresence, presenceIntervalMs);
   pingPresence();
+
+  // Lite version message count subscribe করো
+  unsubLiteMsgs = onValue(liteMsgsRef, snap => {
+    liteMsgCount = snap.size || 0;
+    document.getElementById("msg-count").textContent = allMessages.length + liteMsgCount;
+  });
+
+  // Tab/browser বন্ধ হলে presence reset করো
+  const myPresRef = ref(db, `presence/${myRole}`);
+  onDisconnect(myPresRef).update({ typing: 0, online: false }).catch(() => {});
+  // Update presence UI every second so "X ago" stays live
+  setInterval(() => { if (myRole) updatePresence(); }, 1000);
 
   // Show other person's notes as popup after short delay
   setTimeout(async () => {
@@ -1714,6 +1753,8 @@ window.goBack = function() {
   if (unsubRestrict) { unsubRestrict(); unsubRestrict = null; }
   if (unsubBannedWords) { unsubBannedWords(); unsubBannedWords = null; }
   if (emergencyUnlisten) { emergencyUnlisten(); emergencyUnlisten = null; }
+  if (unsubLiteMsgs) { unsubLiteMsgs(); unsubLiteMsgs = null; }
+  liteMsgCount = 0;
   const eBtn = document.getElementById('emergency-btn');
   if (eBtn) eBtn.style.display = 'none';
   clearInterval(restrictCountdownInterval);
@@ -1874,8 +1915,8 @@ function startListeners() {
         if (metaEl) {
           const time = new Date(Number(last.ts)).toLocaleTimeString("bn-BD", {hour:"2-digit",minute:"2-digit"});
           const tick = seen && seen >= String(last.ts)
-            ? `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="seen-label">Seen</span>`
-            : `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="delivered-label">Delivered</span>`;
+            ? `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="seen-label">✓✓ Seen</span>`
+            : `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="delivered-label">✓ Delivered</span>`;
           metaEl.innerHTML = tick;
         }
       }
@@ -3354,6 +3395,18 @@ window.openSettingsPanel = function() {
   if (notesInp) notesInp.value = notes[myRole] || "";
   // Render banned words
   renderBannedWordsList();
+  // Highlight active presence interval button
+  setTimeout(() => {
+    document.querySelectorAll('.pres-btn').forEach(btn => {
+      const active = Number(btn.dataset.val) === presenceIntervalMs;
+      btn.style.background = active ? 'linear-gradient(135deg,#3a1a7e,#5a2a9e)' : 'rgba(30,20,60,0.6)';
+      btn.style.color = active ? '#fff' : '#aaa';
+      btn.style.borderColor = active ? '#7755cc' : '#3a3a6a';
+    });
+    const labels = {1000:'১ সেকেন্ড', 5000:'৫ সেকেন্ড', 30000:'৩০ সেকেন্ড', 60000:'১ মিনিট'};
+    const note = document.getElementById('pres-interval-note');
+    if (note) note.textContent = '✓ এখন ' + (labels[presenceIntervalMs] || presenceIntervalMs+'ms') + ' পর পর update হচ্ছে';
+  }, 50);
   // Populate other nickname
   const otherRole = myRole === "A" ? "B" : "A";
   const otherInp = document.getElementById("other-nickname-input");
@@ -3476,7 +3529,7 @@ function updateCountdownPreview() {
 function pingPresence() {
   if (!myRole) return;
   const myPresRef = ref(db, `presence/${myRole}`);
-  update(myPresRef, { last: Date.now(), typing: isTyping ? 1 : 0 }).catch(() => {});
+  update(myPresRef, { last: Date.now(), typing: isTyping ? 1 : 0, online: true }).catch(() => {});
 }
 
 function updatePresence() {
@@ -3495,9 +3548,13 @@ function updatePresence() {
 
   const presenceEl = document.getElementById("other-presence");
 
-  if (!p || !p.last) {
-    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(30,30,60,0.5);border:1px solid #222244;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;"><span style="width:7px;height:7px;border-radius:50%;background:#333355;display:inline-block;"></span> Waiting...</span>`;
+  if (!p || !p.last || p.online === false) {
+    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(20,20,30,0.5);border:1px solid #333344;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;"><span style="width:7px;height:7px;border-radius:50%;background:#444455;display:inline-block;"></span> Offline</span>`;
     typingEl.style.display = "none";
+    const pillText = document.getElementById("header-timer-display");
+    const pillDot  = document.getElementById("header-presence-dot");
+    if (pillText) pillText.textContent = "Offline";
+    if (pillDot)  { pillDot.className = "stats-live-dot"; pillDot.style.background = "#444466"; pillDot.style.boxShadow = "none"; }
     return;
   }
 
@@ -3509,27 +3566,32 @@ function updatePresence() {
   }
 
   const diff = Date.now() - Number(p.last);
+  // online flag true থাকলে এবং diff ৩০ সেকেন্ডের মধ্যে হলে Online দেখাও
+  const isOnline = p.online === true && diff < 30000;
   let status, dotColor, bgColor, borderColor;
-  if (diff < 10000) {
+  if (isOnline || diff < 10000) {
     status = "Online";
     dotColor = "#22ee66";
     bgColor = "rgba(20,60,30,0.6)";
     borderColor = "#1a5a30";
-  } else {
+  } else if (diff < 43200000) { // under 12 hours
     const totalSec = Math.floor(diff / 1000);
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    let timeStr = "Last Active ";
-    if (h > 0) timeStr += h + " hour" + (h > 1 ? "s" : "") + " ";
-    if (m > 0) timeStr += m + " minute" + (m > 1 ? "s" : "") + " ";
-    if (h === 0 && m === 0) timeStr += s + " second" + (s > 1 ? "s" : "") + " ";
-    timeStr += "ago";
+    let timeStr = "";
+    if (h > 0) timeStr = h + "h " + m + "m ago";
+    else if (m > 0) timeStr = m + "m " + s + "s ago";
+    else timeStr = s + "s ago";
     status = timeStr;
-
-    if (diff < 60000) { dotColor = "#ffaa22"; bgColor = "rgba(50,40,10,0.5)"; borderColor = "#554420"; }
+    if (diff < 60000)      { dotColor = "#ffaa22"; bgColor = "rgba(50,40,10,0.5)"; borderColor = "#554420"; }
     else if (diff < 3600000) { dotColor = "#ff6644"; bgColor = "rgba(50,20,10,0.5)"; borderColor = "#552010"; }
-    else { dotColor = "#555"; bgColor = "rgba(30,30,40,0.5)"; borderColor = "#333"; }
+    else                    { dotColor = "#885533"; bgColor = "rgba(30,20,10,0.5)"; borderColor = "#443322"; }
+  } else {
+    status = "Offline since 12+h";
+    dotColor = "#444455";
+    bgColor = "rgba(20,20,30,0.5)";
+    borderColor = "#333344";
   }
 
   presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;"><span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span> ${status}</span>`;
@@ -3538,22 +3600,52 @@ function updatePresence() {
   const pillText = document.getElementById("header-timer-display");
   const pillDot  = document.getElementById("header-presence-dot");
   if (pillText) {
-    if (diff < 10000) {
+    if (isOnline || diff < 10000) {
       pillText.textContent = "Online";
-      if (pillDot) { pillDot.style.background = "#22ee66"; pillDot.style.boxShadow = "0 0 5px #22ee66"; }
-    } else {
+      if (pillDot) { pillDot.className = "stats-live-dot online"; pillDot.style.background=''; pillDot.style.boxShadow=''; }
+    } else if (diff < 43200000) {
       const totalSec = Math.floor(diff / 1000);
       const h = Math.floor(totalSec / 3600);
       const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
       if (h > 0) pillText.textContent = h + "h " + m + "m ago";
-      else if (m > 0) pillText.textContent = m + "m ago";
-      else pillText.textContent = totalSec + "s ago";
-      if (pillDot) { pillDot.style.background = dotColor; pillDot.style.boxShadow = "none"; }
+      else if (m > 0) pillText.textContent = m + "m " + s + "s ago";
+      else pillText.textContent = s + "s ago";
+      if (pillDot) { pillDot.style.background = dotColor; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
+    } else {
+      pillText.textContent = "Offline 12+h";
+      if (pillDot) { pillDot.style.background = "#444455"; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
     }
   }
 }
 
 // ── SEEN ────────────────────────────────────────────────
+
+// ── PRESENCE INTERVAL SETTING ────────────────────────────
+window.setPresenceInterval = function(ms) {
+  presenceIntervalMs = ms;
+  localStorage.setItem('presenceIntervalMs', ms);
+  clearInterval(presenceInterval);
+  presenceInterval = setInterval(pingPresence, ms);
+  pingPresence(); // সাথে সাথে একটা ping দাও
+  // Buttons highlight করো
+  document.querySelectorAll('.pres-btn').forEach(btn => {
+    const active = Number(btn.dataset.val) === ms;
+    btn.style.background = active ? 'linear-gradient(135deg,#3a1a7e,#5a2a9e)' : 'rgba(30,20,60,0.6)';
+    btn.style.color = active ? '#fff' : '#aaa';
+    btn.style.borderColor = active ? '#7755cc' : '#3a3a6a';
+  });
+  const labels = {1000:'১ সেকেন্ড', 5000:'৫ সেকেন্ড', 30000:'৩০ সেকেন্ড', 60000:'১ মিনিট'};
+  const note = document.getElementById('pres-interval-note');
+  if (note) note.textContent = '✓ ' + (labels[ms] || ms+'ms') + ' পর পর update হবে';
+};
+
+// Tab visible হলে সাথে সাথে seen update করো
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) updateSeen();
+});
+window.addEventListener('focus', () => { updateSeen(); });
+
 function updateSeen() {
   if (!allMessages.length) return;
   if (document.hidden) return; // don't mark seen if tab is hidden
@@ -3569,7 +3661,7 @@ function updateSeen() {
 function renderMessages() {
   const container = document.getElementById("messages");
   const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
-  document.getElementById("msg-count").textContent = allMessages.length;
+  document.getElementById("msg-count").textContent = allMessages.length + liteMsgCount;
 
   if (!allMessages.length) {
     container.innerHTML = `<div class="empty-state">🌙<br>এখনো কোনো কথা নেই<br><span style="font-size:12px;color:#2a2a4a">প্রথম কথা বলো...</span></div>`;
@@ -3615,9 +3707,9 @@ function renderMessages() {
         if (metaEl) {
           const time = new Date(Number(msg.ts)).toLocaleTimeString("bn-BD", { hour:"2-digit", minute:"2-digit" });
           const isMe = msg.role === myRole;
-          const isSeen = isMe && otherSeen && String(msg.ts) === otherSeen;
+          const isSeen = isMe && otherSeen && String(otherSeen) >= String(msg.ts);
           const isDelivered = isMe && !isSeen;
-          const metaExtra = isMe ? (isSeen ? `<span class="seen-tag">✓✓ Seen</span>` : isDelivered ? `<span class="delivered-tag">Delivered</span>` : '') : '';
+          const metaExtra = isMe ? (isSeen ? `<span class="seen-label">✓✓ Seen</span>` : isDelivered ? `<span class="delivered-label">✓ Delivered</span>` : '') : '';
           const timeEl = metaEl.querySelector('.msg-time');
           if (timeEl) timeEl.nextElementSibling?.remove();
           if (metaExtra && timeEl) timeEl.insertAdjacentHTML('afterend', metaExtra.replace(/^<span/, '<span'));
@@ -3713,10 +3805,10 @@ function buildMsgHtml(msg, idx, otherSeen) {
 
     let metaExtra = "";
     if (isMe && idx === allMessages.length - 1) {
-      if (otherSeen && otherSeen >= String(msg.ts)) {
-        metaExtra = `<span class="seen-label">Seen</span>`;
+      if (otherSeen && String(otherSeen) >= String(msg.ts)) {
+        metaExtra = `<span class="seen-label">✓✓ Seen</span>`;
       } else {
-        metaExtra = `<span class="delivered-label">Delivered</span>`;
+        metaExtra = `<span class="delivered-label">✓ Delivered</span>`;
       }
     }
 
