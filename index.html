@@ -1700,14 +1700,7 @@ window.selectRole = function(role) {
   presenceInterval = setInterval(pingPresence, presenceIntervalMs);
   pingPresence();
 
-  // Lite (chat_lite/messages) থেকে messages load করে main-এ merge করো
-  unsubLiteMsgs = onValue(query(liteMsgsRef, limitToLast(50)), snap => {
-    liteMsgs = [];
-    snap.forEach(c => liteMsgs.push({ key: 'lite_' + c.key, ...c.val(), _fromLite: true }));
-    const mainMsgs = allMessages.filter(m => !m._fromLite);
-    allMessages = [...mainMsgs, ...liteMsgs].sort((a, b) => Number(a.ts) - Number(b.ts));
-    renderMessages();
-  });
+  unsubLiteMsgs = null;
 
   // Tab/browser বন্ধ হলে presence reset করো
   const myPresRef = ref(db, `presence/${myRole}`);
