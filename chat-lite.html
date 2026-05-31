@@ -225,11 +225,11 @@ const EMOJIS=['🤍','🙂','😑','😆','😮','😢','👍','🥀','🪦'];
 const CLOUD="djado1b65", PRESET="voiceee";
 
 const app=initializeApp(FB), db=getDatabase(app);
-const msgsRef=ref(db,"chat_lite/messages"), mainMsgsRef=ref(db,"messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
+const msgsRef=ref(db,"messages"), liteMsgsRef=ref(db,"chat_lite/messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
 const themeRef=ref(db,"theme"), bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics");
 
 let role=null, nicks={A:"Star",B:"Moon"}, theme="dark";
-let msgs=[], liteMsgsArr=[], mainMsgsArr=[], replyTo=null, ctxMsg=null, bwords=[], ntfyTopics={A:"anonchat_star",B:"anonchat_moon"};
+let msgs=[], replyTo=null, ctxMsg=null, bwords=[], ntfyTopics={A:"anonchat_star",B:"anonchat_moon"};
 let presData={}, emergDismissTs=0;
 let unsubs=[], presTimer, typingTimer;
 
@@ -268,22 +268,7 @@ function init(){
   unsubs.push(onValue(nickRef,s=>{ const d=s.val()||{}; nicks.A=d.A||'Star'; nicks.B=d.B||'Moon'; updateHeader(); refreshNickInputs(); }));
   unsubs.push(onValue(themeRef,s=>applyTheme(s.val()||'dark')));
   unsubs.push(onValue(bwRef,s=>{ bwords=Object.values(s.val()||{}); renderBwords(); }));
-  // chat_lite/messages listener
-  unsubs.push(onValue(query(msgsRef,limitToLast(50)),s=>{
-    liteMsgsArr=[]; s.forEach(c=>liteMsgsArr.push({id:'l_'+c.key,...c.val()}));
-    mergeMsgs();
-  }));
-  // main messages listener
-  unsubs.push(onValue(query(mainMsgsRef,limitToLast(50)),s=>{
-    mainMsgsArr=[]; s.forEach(c=>{
-      const v=c.val();
-      // system/game/voice/doodle skip করো lite-তে
-      if(v.system||v.role==='system') return;
-      if(v.text&&(v.text.startsWith('[voice]')||v.text.startsWith('[photo]')&&v.isDoodle)) return;
-      mainMsgsArr.push({id:'m_'+c.key,...v});
-    });
-    mergeMsgs();
-  }));
+  unsubs.push(onValue(query(msgsRef,limitToLast(50)),s=>{ msgs=[]; s.forEach(c=>{ const v=c.val(); if(v.system||v.role==='system') return; msgs.push({id:c.key,...v}); }); renderMsgs(); markSeen(); }));
   unsubs.push(onValue(emergRef,s=>{ const d=s.val(); if(!d||d.target!==role||(d.ts||0)<=emergDismissTs||Date.now()-(d.ts||0)>30000) return; showEmergBanner(d.senderName||'অপর জন'); }));
   unsubs.push(onValue(topicRef,s=>{ ntfyTopics={A:"anonchat_star",B:"anonchat_moon",...(s.val()||{})}; $('my-topic').value=ntfyTopics[role]||''; }));
 }
@@ -317,17 +302,6 @@ function updateHeader(){
   el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:${dot};${diff<10000?'box-shadow:0 0 5px '+dot+';':''}display:inline-block;"></span>${txt}</span>`;
 }
 
-function getMsgRef(id){
-  if(id.startsWith('l_')) return ref(db,`chat_lite/messages/${id.slice(2)}`);
-  if(id.startsWith('m_')) return ref(db,`messages/${id.slice(2)}`);
-  return ref(db,`chat_lite/messages/${id}`);
-}
-// ── MERGE ──
-function mergeMsgs(){
-  msgs=[...liteMsgsArr,...mainMsgsArr].sort((a,b)=>Number(a.ts)-Number(b.ts));
-  renderMsgs(); markSeen();
-}
-
 // ── MESSAGES ──
 function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 
@@ -358,13 +332,7 @@ function renderMsgs(){
 
 function markSeen(){
   const other=role==='A'?'B':'A';
-  msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>{
-    if(m.id.startsWith('l_')){
-      update(ref(db,`chat_lite/messages/${m.id.slice(2)}`),{seen:true});
-    } else if(m.id.startsWith('m_')){
-      update(ref(db,`messages/${m.id.slice(2)}`),{seen:true});
-    }
-  });
+  msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>update(ref(db,`messages/${m.id}`),{seen:true}));
 }
 
 // ── SEND ──
@@ -426,11 +394,11 @@ $('ctx-copy').onclick=()=>{
 };
 $('ctx-del').onclick=async()=>{
   if(!ctxMsg||ctxMsg.role!==role){toast('❌ Cannot delete');hideCtx();return;}
-  await remove(getMsgRef(ctxMsg.id)); hideCtx();
+  await remove(ref(db,`messages/${ctxMsg.id}`)); hideCtx();
 };
 
 async function addReact(id,emoji){
-  const p=id.startsWith('l_')?'chat_lite/messages/'+id.slice(2):id.startsWith('m_')?'messages/'+id.slice(2):'chat_lite/messages/'+id; await update(ref(db,p+'/reactions'),{[role]:emoji});
+  await update(ref(db,`messages/${id}/reactions`),{[role]:emoji});
 }
 
 // ── SETTINGS ──
