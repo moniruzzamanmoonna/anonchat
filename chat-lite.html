@@ -283,9 +283,10 @@ function startPresence(){
     update(myPresRef,data);
   }
   ping();
-  onDisconnect(myPresRef).update({online:false,typing:false}).catch(()=>{});
-  presTimer=setInterval(()=>{ ping(); },5000);
-  // প্রতি সেকেন্ডে header update করো যাতে "X ago" live থাকে
+  onDisconnect(myPresRef).update({online:false,typing:false,last:Date.now()}).catch(()=>{});
+  // Background এ গেলেও ping চলে — visibility change এ immediate ping
+  presTimer=setInterval(()=>{ ping(); },10000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) ping(); });
   setInterval(()=>{ updateHeader(); },1000);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
   unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); }));
@@ -300,7 +301,7 @@ function updateHeader(){
   else typ.style.display='none';
   const diff=Date.now()-Number(p.last);
   let txt,dot;
-  if(diff<10000){txt='Online';dot='#22ee66';}
+  if(diff<15000){txt='Online';dot='#22ee66';}
   else{
     const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
     txt=h>0?`Last Active ${h}h ${m}m ago`:m>0?`Last Active ${m}m ${sec}s ago`:`Last Active ${sec}s ago`;
