@@ -124,6 +124,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
   </div>
   <div id="msgs"></div>
   <div id="typing"></div>
+  <div id="edit-bar" style="display:none;flex-direction:row;align-items:center;gap:8px;background:rgba(80,80,255,.12);border-top:1px solid #3344aa;padding:8px 14px;font-size:12px;color:#99aaff;"><span>✏️ Editing...</span><button class="rclose" id="edit-close" style="margin-left:auto;">✕</button></div>
   <div id="reply-bar"><span id="reply-text"></span><button class="rclose" id="reply-close">✕</button></div>
   <div class="iarea">
     <input type="file" id="photo-input" accept="image/*" style="display:none">
@@ -147,6 +148,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
   <div class="erow" id="ctx-emojis"></div>
   <div class="citem" id="ctx-reply">↩ Reply</div>
   <div class="citem" id="ctx-copy">📋 Copy</div>
+  <div class="citem" id="ctx-edit">✏️ Edit</div>
   <div class="citem red" id="ctx-del">🗑 Delete</div>
 </div>
 
@@ -229,7 +231,7 @@ const msgsRef=ref(db,"messages"), liteMsgsRef=ref(db,"chat_lite/messages"), pres
 const themeRef=ref(db,"theme"), bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics");
 
 let role=null, nicks={A:"Star",B:"Moon"}, theme="dark";
-let msgs=[], replyTo=null, ctxMsg=null, bwords=[], ntfyTopics={A:"anonchat_star",B:"anonchat_moon"};
+let msgs=[], replyTo=null, editMsg=null, ctxMsg=null, bwords=[], ntfyTopics={A:"anonchat_star",B:"anonchat_moon"};
 let presData={}, emergDismissTs=0;
 let unsubs=[], presTimer, typingTimer;
 
@@ -275,11 +277,16 @@ function init(){
 
 // ── PRESENCE ──
 function startPresence(){
-  function ping(typing=false){ set(ref(db,`presence/${role}`),{last:Date.now(),typing,online:true}); }
+  const myPresRef=ref(db,`presence/${role}`);
+  function ping(typing=false){
+    const data={last:Date.now(),online:true,typing:typing};
+    update(myPresRef,data);
+  }
   ping();
-  // Browser বন্ধ হলে presence null করো
-  onDisconnect(ref(db,`presence/${role}`)).remove().catch(()=>{});
-  presTimer=setInterval(()=>{ ping(); updateHeader(); },8000);
+  onDisconnect(myPresRef).update({online:false,typing:false}).catch(()=>{});
+  presTimer=setInterval(()=>{ ping(); },5000);
+  // প্রতি সেকেন্ডে header update করো যাতে "X ago" live থাকে
+  setInterval(()=>{ updateHeader(); },1000);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
   unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); }));
 }
@@ -313,12 +320,35 @@ function renderMsgs(){
     const time=m.ts?new Date(m.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
     const status=me?(m.seen?'<span style="color:#80ccff">Seen</span>':m.delivered?'<span style="color:var(--sub)">Delivered</span>':''):'';
     const orig=m.replyTo?msgs.find(x=>x.id===m.replyTo):null;
-    const rep=orig?`<div class="rpreview">↩ ${esc(orig.text||'📷')}</div>`:'';
-    const body=m.img?`<img class="imgmsg" src="${m.img}" data-id="${m.id}">`:`<span>${esc(m.text||'')}</span>`;
+    const rep=orig?`<div class="rpreview" data-replyid="${orig.id}" style="cursor:pointer">↩ ${esc(orig.text||'📷')}</div>`:'';
+    const edited=m.edited?'<span style="font-size:9px;color:var(--sub);margin-left:4px;opacity:.7">(edited)</span>':'';
+    const body=m.img?`<img class="imgmsg" src="${m.img}" data-id="${m.id}">`:`<span>${esc(m.text||'')}${edited}</span>`;
     const reacts=m.reactions?`<div class="reacts">${Object.entries(Object.values(m.reactions).reduce((a,e)=>{a[e]=(a[e]||0)+1;return a;},{})).map(([e,c])=>`<span class="rpill" data-id="${m.id}" data-e="${e}">${e}${c>1?c:''}</span>`).join('')}</div>`:'';
     return `<div class="mw ${cls}">${rep}<div class="bubble" data-id="${m.id}">${body}</div>${reacts}<div class="mtime">${time} ${status}</div></div>`;
   }).join('');
 
+  el.querySelectorAll('.mw').forEach(mw=>{
+    let swipeStartX=0, swipeStartY=0, swiping=false;
+    mw.addEventListener('touchstart',e=>{swipeStartX=e.touches[0].clientX;swipeStartY=e.touches[0].clientY;swiping=true;},{passive:true});
+    mw.addEventListener('touchmove',e=>{
+      if(!swiping) return;
+      const dx=e.touches[0].clientX-swipeStartX, dy=Math.abs(e.touches[0].clientY-swipeStartY);
+      if(dy>20){swiping=false;return;}
+      if(dx>60){
+        swiping=false;
+        const id=mw.querySelector('.bubble')?.dataset?.id;
+        const found=msgs.find(m=>m.id===id); if(!found) return;
+        replyTo=found; $('reply-text').textContent='↩ '+(found.text||'📷');
+        $('reply-bar').style.display='flex'; $('msg-input').focus();
+        // haptic
+        if(navigator.vibrate) navigator.vibrate(30);
+        // visual flash
+        mw.style.transition='transform .15s'; mw.style.transform='translateX(8px)';
+        setTimeout(()=>{mw.style.transform='';},150);
+      }
+    },{passive:true});
+    mw.addEventListener('touchend',()=>{swiping=false;},{passive:true});
+  });
   el.querySelectorAll('.bubble').forEach(b=>{
     let lt; b.addEventListener('touchstart',e=>{lt=setTimeout(()=>showCtx(b.dataset.id,e.touches[0].clientX,e.touches[0].clientY),500);},{passive:true});
     b.addEventListener('touchend',()=>clearTimeout(lt));
@@ -327,6 +357,18 @@ function renderMsgs(){
   });
   el.querySelectorAll('.rpill').forEach(p=>p.addEventListener('click',e=>{e.stopPropagation();addReact(p.dataset.id,p.dataset.e);}));
   el.querySelectorAll('.imgmsg').forEach(img=>img.addEventListener('click',()=>window.open(img.src,'_blank')));
+  el.querySelectorAll('.rpreview[data-replyid]').forEach(r=>r.addEventListener('click',e=>{
+    e.stopPropagation();
+    const tid=r.dataset.replyid;
+    // ওই message এর bubble খুঁজে scroll করো
+    const target=el.querySelector(`.bubble[data-id="${tid}"]`);
+    if(!target) return;
+    target.scrollIntoView({behavior:'smooth',block:'center'});
+    // highlight flash
+    target.style.transition='background .2s';
+    target.style.background='rgba(150,150,255,.35)';
+    setTimeout(()=>{ target.style.background=''; },1200);
+  }));
   if(atBot) el.scrollTop=el.scrollHeight;
 }
 
@@ -346,6 +388,11 @@ $('send-btn').onclick=doSend;
 async function doSend(){
   const txt=$('msg-input').value.trim(); if(!txt) return;
   if(bwords.some(w=>txt.toLowerCase().includes(w))){toast('🚫 Banned word!');return;}
+  if(editMsg){
+    // Edit mode
+    await update(ref(db,`messages/${editMsg.id}`),{text:txt,edited:true});
+    clearEdit(); return;
+  }
   const m={role,text:txt,ts:Date.now(),delivered:true};
   if(replyTo) m.replyTo=replyTo.id;
   clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto'; $('send-btn').disabled=true;
@@ -395,6 +442,20 @@ $('ctx-copy').onclick=()=>{
 $('ctx-del').onclick=async()=>{
   if(!ctxMsg||ctxMsg.role!==role){toast('❌ Cannot delete');hideCtx();return;}
   await remove(ref(db,`messages/${ctxMsg.id}`)); hideCtx();
+};
+
+// ── EDIT ──
+function clearEdit(){editMsg=null;$('edit-bar').style.display='none';$('msg-input').value='';$('msg-input').style.height='auto';}
+$('edit-close').onclick=clearEdit;
+$('ctx-edit').onclick=()=>{
+  if(!ctxMsg||ctxMsg.role!==role||!ctxMsg.text){toast('❌ Cannot edit');hideCtx();return;}
+  editMsg=ctxMsg;
+  $('edit-bar').style.display='flex';
+  $('msg-input').value=ctxMsg.text;
+  $('msg-input').style.height='auto';
+  $('msg-input').style.height=Math.min($('msg-input').scrollHeight,120)+'px';
+  $('send-btn').disabled=false;
+  $('msg-input').focus(); hideCtx();
 };
 
 async function addReact(id,emoji){
