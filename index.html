@@ -1783,7 +1783,7 @@ function startListeners() {
   unsubMessages = onValue(recentQ, snapshot => {
     const data = snapshot.val() || {};
     const newMsgs = Object.entries(data).map(([key, val]) => ({ key, ...val }));
-    newMsgs.sort((a, b) => Number(a.ts) - Number(b.ts));
+    newMsgs.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 
     // Set oldest key for pagination (only on first load)
     if (newMsgs.length > 0 && !oldestKey) {
@@ -1829,7 +1829,7 @@ function startListeners() {
     // Merge: keep older already-loaded messages, update recent
     const olderMsgs = allMessages.filter(m => !newMsgs.find(n => n.key === m.key));
     lastMsgCount = newMsgs.length;
-    allMessages = [...olderMsgs, ...newMsgs].sort((a, b) => Number(a.ts) - Number(b.ts));
+    allMessages = [...olderMsgs, ...newMsgs].sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 
     renderMessages();
     updateSeen();
@@ -1970,9 +1970,9 @@ async function loadOlderMsgs() {
       endEl.style.cssText = "text-align:center;color:#3a3a6a;font-size:12px;padding:8px;";
       container.prepend(endEl);
     } else {
-      const older = Object.entries(data).map(([k,v]) => ({key:k,...v})).sort((a,b) => Number(a.ts)-Number(b.ts));
+      const older = Object.entries(data).map(([k,v]) => ({key:k,...v})).sort((a,b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
       oldestKey = older[0].key;
-      allMessages = [...older, ...allMessages].sort((a,b) => Number(a.ts)-Number(b.ts));
+      allMessages = [...older, ...allMessages].sort((a,b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
       renderMessages();
       container.scrollTop = container.scrollHeight - prevHeight;
     }
@@ -3646,8 +3646,11 @@ window.addEventListener('focus', () => { updateSeen(); });
 
 function updateSeen() {
   if (!allMessages.length) return;
-  if (document.hidden) return; // don't mark seen if tab is hidden
-  const last = allMessages[allMessages.length - 1];
+  if (document.hidden) return;
+  // শুধু real messages দেখো (system বা _fromLite না)
+  const realMsgs = allMessages.filter(m => !m.system && m.role !== 'system' && !m._fromLite);
+  if (!realMsgs.length) return;
+  const last = realMsgs[realMsgs.length - 1];
   if (last.role !== myRole && Number(last.ts) !== lastSeenTs) {
     lastSeenTs = Number(last.ts);
     const myPresRef = ref(db, `presence/${myRole}`);
@@ -3656,6 +3659,21 @@ function updateSeen() {
 }
 
 // ── RENDER ───────────────────────────────────────────────
+
+window.scrollToMsg = function(id) {
+  const container = document.getElementById("messages");
+  if (!container) return;
+  const target = container.querySelector(`.msg-wrapper[data-msgid="${id}"]`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const bubble = target.querySelector('.message-bubble, .bubble-inner, div[style*="border-radius"]');
+    const el = bubble || target;
+    el.style.transition = 'background 0.2s';
+    el.style.background = 'rgba(100,80,200,0.3)';
+    setTimeout(() => { el.style.background = ''; }, 1200);
+  }
+};
+
 function renderMessages() {
   const container = document.getElementById("messages");
   const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
@@ -3699,18 +3717,17 @@ function renderMessages() {
           if (meta && newReact) meta.insertAdjacentHTML('beforebegin', newReact);
         }
       }
-      // Update seen/delivered on last message
-      if (idx === newCount - 1) {
+      // Update seen/delivered on last MY message only
+      const lastMyIdx = allMessages.reduce((last, m, i) => (m.role === myRole && !m.system ? i : last), -1);
+      if (idx === lastMyIdx) {
         const metaEl = el.querySelector('.msg-meta');
         if (metaEl) {
-          const time = new Date(Number(msg.ts)).toLocaleTimeString("bn-BD", { hour:"2-digit", minute:"2-digit" });
           const isMe = msg.role === myRole;
-          const isSeen = isMe && otherSeen && String(otherSeen) >= String(msg.ts);
+          const isSeen = isMe && otherSeen && Number(otherSeen) >= Number(msg.ts);
           const isDelivered = isMe && !isSeen;
-          const metaExtra = isMe ? (isSeen ? `<span class="seen-label">✓✓ Seen</span>` : isDelivered ? `<span class="delivered-label">✓ Delivered</span>` : '') : '';
+          const metaExtra = isMe ? (isSeen ? `<span class="seen-label">✓✓ Seen</span>` : `<span class="delivered-label">✓ Delivered</span>`) : '';
           const timeEl = metaEl.querySelector('.msg-time');
-          if (timeEl) timeEl.nextElementSibling?.remove();
-          if (metaExtra && timeEl) timeEl.insertAdjacentHTML('afterend', metaExtra.replace(/^<span/, '<span'));
+          if (timeEl) { timeEl.nextElementSibling?.remove(); if (metaExtra) timeEl.insertAdjacentHTML('afterend', metaExtra); }
         }
       }
     });
@@ -3743,7 +3760,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
         } else {
           replyContent = esc(orig.text).substring(0, 60);
         }
-        replyHtml = `<div class="reply-preview">↩ ${replyContent}</div>`;
+        replyHtml = `<div class="reply-preview" style="cursor:pointer" onclick="scrollToMsg('${orig.id}')">↩ ${replyContent}</div>`;
       }
     }
 
@@ -3802,15 +3819,17 @@ function buildMsgHtml(msg, idx, otherSeen) {
     }
 
     let metaExtra = "";
-    if (isMe && idx === allMessages.length - 1) {
-      if (otherSeen && String(otherSeen) >= String(msg.ts)) {
+    // শুধু আমার শেষ message-এ Seen/Delivered দেখাবে
+    const lastMyMsgIdx = allMessages.reduce((last, m, i) => (m.role === myRole && !m.system ? i : last), -1);
+    if (isMe && idx === lastMyMsgIdx) {
+      if (otherSeen && Number(otherSeen) >= Number(msg.ts)) {
         metaExtra = `<span class="seen-label">✓✓ Seen</span>`;
       } else {
         metaExtra = `<span class="delivered-label">✓ Delivered</span>`;
       }
     }
 
-    return `<div class="msg-wrapper ${isMe?'me':'other'}">
+    return `<div class="msg-wrapper ${isMe?'me':'other'}" data-msgid="${msg.id || msg.ts}">
       ${replyHtml}
       <div class="bubble"
         ontouchstart="touchStart(event,${idx})"
