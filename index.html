@@ -1541,7 +1541,7 @@ let touchMoved = false, swipeActive = false;
 let unsubMessages = null, unsubPresence = null, unsubTheme = null;
 let unsubNickname = null, unsubMood = null, unsubCountdown = null, unsubNotes = null, unsubPin = null, unsubRestrict = null, unsubBannedWords = null;
 let presenceInterval = null;
-let presenceIntervalMs = parseInt(localStorage.getItem("presenceIntervalMs") || "5000");
+let presenceIntervalMs = parseInt(localStorage.getItem("presenceIntervalMs") || "10000");
 let countdownInterval = null;
 let nicknames = { A: "Star", B: "Moon" };
 let moods = { A: "", B: "" };
@@ -1699,6 +1699,8 @@ window.selectRole = function(role) {
   startListeners();
   presenceInterval = setInterval(pingPresence, presenceIntervalMs);
   pingPresence();
+  // Tab/window focus বা visible হলে সাথে সাথে ping দাও
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && myRole) pingPresence(); });
 
   unsubLiteMsgs = null;
 
@@ -3547,12 +3549,9 @@ function updatePresence() {
   const presenceEl = document.getElementById("other-presence");
 
   if (!p || !p.last) {
-    presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(20,20,30,0.5);border:1px solid #333344;border-radius:20px;padding:3px 12px;font-size:11px;color:#555577;"><span style="width:7px;height:7px;border-radius:50%;background:#444455;display:inline-block;"></span> Offline</span>`;
+    // কখনো login করেনি — blank দেখাও
+    presenceEl.innerHTML = "";
     typingEl.style.display = "none";
-    const pillText = document.getElementById("header-timer-display");
-    const pillDot  = document.getElementById("header-presence-dot");
-    if (pillText) pillText.textContent = "Offline";
-    if (pillDot)  { pillDot.className = "stats-live-dot"; pillDot.style.background = "#444466"; pillDot.style.boxShadow = "none"; }
     return;
   }
 
@@ -3565,9 +3564,9 @@ function updatePresence() {
 
   const diff = Date.now() - Number(p.last);
   
-  const isOnline = diff < 30000; // শুধু timestamp দিয়ে online check — Lite+Main দুটোই কাজ করবে
+  const isOnline = diff < 15000; // 15s — ping প্রতি 10s, তাই accurate
   let status, dotColor, bgColor, borderColor;
-  if (isOnline || diff < 10000) {
+  if (isOnline) {
     status = "Online";
     dotColor = "#22ee66";
     bgColor = "rgba(20,60,30,0.6)";
@@ -3586,7 +3585,7 @@ function updatePresence() {
     else if (diff < 3600000) { dotColor = "#ff6644"; bgColor = "rgba(50,20,10,0.5)"; borderColor = "#552010"; }
     else                    { dotColor = "#885533"; bgColor = "rgba(30,20,10,0.5)"; borderColor = "#443322"; }
   } else {
-    status = "Offline since 12+h";
+    status = "12h+ ago";
     dotColor = "#444455";
     bgColor = "rgba(20,20,30,0.5)";
     borderColor = "#333344";
@@ -3598,7 +3597,7 @@ function updatePresence() {
   const pillText = document.getElementById("header-timer-display");
   const pillDot  = document.getElementById("header-presence-dot");
   if (pillText) {
-    if (isOnline || diff < 10000) {
+    if (isOnline) {
       pillText.textContent = "Online";
       if (pillDot) { pillDot.className = "stats-live-dot online"; pillDot.style.background=''; pillDot.style.boxShadow=''; }
     } else if (diff < 43200000) {
@@ -3611,7 +3610,7 @@ function updatePresence() {
       else pillText.textContent = s + "s ago";
       if (pillDot) { pillDot.style.background = dotColor; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
     } else {
-      pillText.textContent = "Offline 12+h";
+      pillText.textContent = "12h+ ago";
       if (pillDot) { pillDot.style.background = "#444455"; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
     }
   }
