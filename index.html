@@ -3851,7 +3851,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
           </div>`;
         }
       } else {
-        bubbleContent = `${badge}<video src="${vurl}" controls playsinline style="max-width:220px;max-height:300px;border-radius:10px;display:block;"></video>`;
+        bubbleContent = `<video src="${vurl}" controls playsinline style="max-width:220px;max-height:300px;border-radius:10px;display:block;"></video>`;
       }
     } else if (msg.text && msg.text.startsWith('[voice]')) {
       const url = msg.text.replace('[voice]','');
