@@ -96,19 +96,14 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 </style>
 </head>
 <body>
-<div id="app-loader" style="position:fixed;inset:0;z-index:9999;background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
-  <div style="font-size:24px;letter-spacing:4px;color:#c0b0ff;font-weight:200;">ANON CHAT</div>
-  <div style="font-size:11px;color:#333355;letter-spacing:2px;">LITE</div>
-  <div style="width:36px;height:36px;border:3px solid #1e1e3a;border-top-color:#c0b0ff;border-radius:50%;animation:spin .8s linear infinite;margin-top:8px;"></div>
-  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-</div>
+
 
 <div id="lock-screen" class="screen" style="display:none;">
   <div class="logo">ANON CHAT</div>
   <div class="version">⚡ LITE &nbsp;·&nbsp; v 1.3.9</div>
   <input class="code" type="password" id="pwd" placeholder="Secret code...">
   <button class="btn" id="enter-btn">Enter</button>
-  <a href="index.html" style="font-size:12px;color:var(--sub);text-decoration:none;margin-top:8px;letter-spacing:1px;">↗ Full Version</a>
+  <a href="https://moniruzzamanmoonna.github.io/anonchat/?from=lite" style="font-size:12px;color:var(--sub);text-decoration:none;margin-top:8px;letter-spacing:1px;">↗ Full Version</a>
 </div>
 
 <div id="role-screen" class="screen active">
@@ -120,6 +115,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 <div id="chat-screen">
   <div class="hdr">
     <button class="hdr-back" id="back-btn">←</button>
+    <button onclick="window.location.href='https://moniruzzamanmoonna.github.io/anonchat/?from=lite'" title="Main Chat" style="background:rgba(80,60,180,0.3);border:1px solid #3a3a7e;color:#c0b0ff;border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">⚡→🌟</button>
     <div class="hdr-info">
       <div class="hdr-name" id="hdr-name">—</div>
       <div class="hdr-pres" id="hdr-pres"></div>
@@ -162,6 +158,12 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
   <div class="shdr">
     <button id="settings-close" style="background:none;border:none;color:var(--tx);font-size:20px;cursor:pointer;">←</button>
     <div style="font-size:18px;color:var(--ttl);font-weight:500;">Settings</div>
+  </div>
+  <div class="ssec" style="border-bottom:1px solid var(--brd);padding-bottom:12px;">
+    <button onclick="window.location.href='https://moniruzzamanmoonna.github.io/anonchat/?from=lite'" style="width:100%;background:linear-gradient(135deg,#2a1a5e,#1a2a5e);border:1px solid #3a3a7e;color:#c0b0ff;padding:13px;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
+      🌟 Main Chat-এ যাও
+    </button>
+    <div style="font-size:11px;color:var(--sub);text-align:center;margin-top:6px;">Full features সহ</div>
   </div>
   <div class="ssec">
     <div class="slbl">✏️ NICKNAME</div>
@@ -220,18 +222,9 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 
 <div id="toast"></div>
 
-<!-- Loading overlay -->
-<div id="app-loader" style="position:fixed;inset:0;z-index:99999;background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
-  <div style="font-size:22px;letter-spacing:6px;color:#c0b0ff;font-weight:200;">CHAT LITE</div>
-  <div style="display:flex;gap:6px;" id="loader-dots">
-    <div style="width:8px;height:8px;border-radius:50%;background:#5533aa;animation:ldot .9s ease-in-out infinite;"></div>
-    <div style="width:8px;height:8px;border-radius:50%;background:#5533aa;animation:ldot .9s ease-in-out .2s infinite;"></div>
-    <div style="width:8px;height:8px;border-radius:50%;background:#5533aa;animation:ldot .9s ease-in-out .4s infinite;"></div>
-  </div>
-  <div id="loader-status" style="font-size:11px;color:#444466;letter-spacing:1px;">সংযোগ হচ্ছে...</div>
-</div>
+
 <style>
-@keyframes ldot{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1);opacity:1}}
+
 </style>
 
 <script type="module">
@@ -275,8 +268,6 @@ $('role-a').onclick=()=>startChat('A');
 $('role-b').onclick=()=>startChat('B');
 
 function startChat(r){
-  const ls=document.getElementById('loader-status');
-  if(ls) ls.textContent='লোড হচ্ছে...';
   role=r;
   hide('role-screen');
   $('chat-screen').style.display='flex';
@@ -292,9 +283,6 @@ function init(){
   unsubs.push(onValue(query(msgsRef,limitToLast(50)),s=>{
     msgs=[]; s.forEach(c=>{ const v=c.val(); if(v.system||v.role==='system') return; msgs.push({id:c.key,...v}); });
     renderMsgs(); markSeen();
-    // First load — hide loader
-    const loader=document.getElementById('app-loader');
-    if(loader) loader.style.display='none';
   }));
   unsubs.push(onValue(emergRef,s=>{ const d=s.val(); if(!d||d.target!==role||(d.ts||0)<=emergDismissTs||Date.now()-(d.ts||0)>30000) return; showEmergBanner(d.senderName||'অপর জন'); }));
   unsubs.push(onValue(topicRef,s=>{ ntfyTopics={A:"anonchat_star",B:"anonchat_moon",...(s.val()||{})}; $('my-topic').value=ntfyTopics[role]||''; }));
