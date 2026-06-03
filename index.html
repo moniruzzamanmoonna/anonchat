@@ -4168,7 +4168,7 @@ window.sendMediaPreview = async function() {
         const prefix = type === 'video' ? '[video]' : '[photo]';
         const msgData = {
           role: myRole,
-          text: prefix + data.secure_url,
+          text: prefix + (type==='video' && data.secure_url.includes('/upload/') ? data.secure_url.replace('/upload/', '/upload/ac_aac/') : data.secure_url),
           ts: Date.now(),
           replyTo: replyTo ? String(replyTo.ts) : "",
           reactions: {}
