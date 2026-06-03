@@ -900,6 +900,61 @@
     <button onclick="sendMediaPreview()" style="width:100%;background:linear-gradient(135deg,#5533aa,#3355aa);border:none;color:#fff;padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">➤ পাঠাও</button>
   </div>
 </div>
+
+<!-- VOICE PREVIEW MODAL -->
+<div id="voice-preview-modal" style="display:none;position:fixed;inset:0;z-index:9001;background:rgba(0,0,0,0.92);flex-direction:column;align-items:center;justify-content:center;gap:20px;">
+  <div style="width:100%;max-width:380px;padding:0 20px;display:flex;flex-direction:column;align-items:center;gap:16px;">
+    <div style="font-size:13px;color:#888;letter-spacing:2px;">VOICE PREVIEW</div>
+    <div style="background:rgba(255,255,255,0.05);border:1px solid #2a2a4a;border-radius:16px;padding:20px;width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <div style="font-size:36px;">🎙️</div>
+      <audio id="voice-preview-audio" controls style="width:100%;border-radius:8px;"></audio>
+      <div id="voice-preview-size" style="font-size:12px;color:#666;"></div>
+    </div>
+    <div style="display:flex;gap:10px;width:100%;">
+      <button onclick="discardVoicePreview()" style="flex:1;background:rgba(255,50,50,0.15);border:1px solid #442222;color:#ff8888;padding:13px;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;">🗑 বাদ দাও</button>
+      <button onclick="sendVoicePreview()" style="flex:2;background:linear-gradient(135deg,#3a1a7e,#1a3a7e);border:none;color:#fff;padding:13px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">➤ পাঠাও</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEVELOPER PANEL -->
+<div id="dev-panel" style="display:none;position:fixed;inset:0;z-index:800;background:var(--bg,#0a0a1a);flex-direction:column;">
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #2a1a1a;background:rgba(20,5,5,0.95);flex-shrink:0;">
+    <button onclick="closeDevPanel()" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer;padding:2px 8px;">←</button>
+    <span style="font-size:15px;color:#ff9988;font-weight:600;flex:1;">🛠️ Developer Panel</span>
+    <span id="dev-status-badge" style="font-size:10px;color:#553333;background:rgba(80,20,20,0.4);padding:2px 8px;border-radius:8px;display:none;">UNLOCKED</span>
+  </div>
+
+  <!-- Lock screen -->
+  <div id="dev-locked" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:30px;">
+    <div style="font-size:48px;">🔐</div>
+    <div style="font-size:13px;color:#553333;letter-spacing:2px;">DEVELOPER ACCESS</div>
+    <div style="width:100%;max-width:300px;display:flex;gap:8px;">
+      <input id="dev-pass-input" type="password" placeholder="Password..." maxlength="20"
+        style="flex:1;background:#1a0505;border:1px solid #4a2222;border-radius:12px;color:#ffaaaa;padding:12px 14px;font-size:15px;font-family:inherit;outline:none;letter-spacing:3px;"
+        onkeydown="if(event.key==='Enter') unlockAdmin()">
+      <button onclick="unlockAdmin()" style="background:linear-gradient(135deg,#5a1010,#3a0808);border:1px solid #7a2222;color:#ffaaaa;border-radius:12px;padding:12px 16px;cursor:pointer;font-size:18px;">🔓</button>
+    </div>
+    <div id="dev-pass-error" style="font-size:12px;color:#ff4444;min-height:16px;"></div>
+  </div>
+
+  <!-- Unlocked content -->
+  <div id="admin-panel-content" style="display:none;flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;">
+
+    <!-- Actions -->
+    <div style="display:flex;gap:8px;">
+      <button onclick="adminLoadMsgs()" style="flex:1;background:rgba(20,40,80,0.6);border:1px solid #1a3a6a;color:#88aaff;border-radius:12px;padding:10px;cursor:pointer;font-size:12px;font-family:inherit;">🔄 Refresh</button>
+      <button onclick="adminDeleteAll()" style="flex:1;background:rgba(80,15,15,0.6);border:1px solid #6a2222;color:#ff8888;border-radius:12px;padding:10px;cursor:pointer;font-size:12px;font-family:inherit;">💣 সব মুছো</button>
+    </div>
+
+    <!-- Message count -->
+    <div id="dev-msg-count" style="font-size:11px;color:#443333;text-align:center;"></div>
+
+    <!-- Message list -->
+    <div id="admin-msg-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+</div>
+
 <!-- WEATHER PANEL -->
 <div id="weather-panel">
   <div class="weather-header">
@@ -3706,6 +3761,117 @@ function updateSeen() {
 
 // ── RENDER ───────────────────────────────────────────────
 
+
+// ── DEVELOPER PANEL ────────────────────────────────────
+const ADMIN_PASSWORD = "2024";
+let adminUnlocked = false;
+
+window.openDevPanel = function() {
+  adminUnlocked = false;
+  document.getElementById('dev-locked').style.display = 'flex';
+  document.getElementById('admin-panel-content').style.display = 'none';
+  document.getElementById('dev-status-badge').style.display = 'none';
+  document.getElementById('dev-pass-input').value = '';
+  document.getElementById('dev-pass-error').textContent = '';
+  document.getElementById('dev-panel').style.display = 'flex';
+};
+
+window.closeDevPanel = function() {
+  document.getElementById('dev-panel').style.display = 'none';
+};
+
+window.unlockAdmin = function() {
+  const inp = document.getElementById('dev-pass-input');
+  if (inp.value.trim() === ADMIN_PASSWORD) {
+    adminUnlocked = true;
+    document.getElementById('dev-locked').style.display = 'none';
+    document.getElementById('admin-panel-content').style.display = 'flex';
+    document.getElementById('dev-status-badge').style.display = 'block';
+    adminLoadMsgs();
+  } else {
+    inp.value = '';
+    const err = document.getElementById('dev-pass-error');
+    err.textContent = '❌ ভুল password!';
+    setTimeout(() => err.textContent = '', 1500);
+  }
+};
+
+window.adminLoadMsgs = async function() {
+  if (!adminUnlocked) return;
+  const listEl = document.getElementById('admin-msg-list');
+  const countEl = document.getElementById('dev-msg-count');
+  listEl.innerHTML = '<div style="color:#553333;font-size:12px;text-align:center;padding:10px;">লোড হচ্ছে...</div>';
+
+  // onValue দিয়ে একবার load (get() timeout এড়াতে)
+  const msgs = [];
+  
+  await new Promise(resolve => {
+    const unsub = onValue(msgsRef, snap => {
+      unsub();
+      if (snap.exists()) snap.forEach(c => msgs.push({ key: c.key, _path: 'messages', ...c.val() }));
+      resolve();
+    }, { onlyOnce: true });
+  });
+
+  await new Promise(resolve => {
+    const unsub = onValue(liteMsgsRef, snap => {
+      unsub();
+      if (snap.exists()) snap.forEach(c => msgs.push({ key: c.key, _path: 'chat_lite/messages', ...c.val() }));
+      resolve();
+    }, { onlyOnce: true });
+  });
+
+  if (!msgs.length) {
+    listEl.innerHTML = '<div style="color:#553333;font-size:12px;text-align:center;padding:10px;">কোনো message নেই</div>';
+    if(countEl) countEl.textContent = '';
+    return;
+  }
+
+  msgs.sort((a,b) => Number(b.ts) - Number(a.ts));
+  if(countEl) countEl.textContent = 'মোট ' + msgs.length + 'টি message';
+
+  listEl.innerHTML = msgs.map(m => {
+    const time = new Date(Number(m.ts)).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'});
+    const date = new Date(Number(m.ts)).toLocaleDateString('bn-BD');
+    const who = m.role === 'A' ? '★' : '☽';
+    let preview = '';
+    if (m.text && m.text.startsWith('[photo]')) preview = '📷 Photo';
+    else if (m.text && m.text.startsWith('[video]')) preview = '🎬 Video';
+    else if (m.text && m.text.startsWith('[voice]')) preview = '🎙️ Voice';
+    else preview = (m.text || '').substring(0, 50);
+    
+    return `<div style="background:rgba(40,10,10,0.6);border:1px solid #3a1a1a;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;" data-key="${m.key}" data-path="${m._path}">
+      <span style="font-size:14px;">${who}</span>
+      <div style="flex:1;overflow:hidden;">
+        <div style="font-size:11px;color:#ffaaaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${preview}</div>
+        <div style="font-size:10px;color:#553333;">${date} ${time}</div>
+      </div>
+      <button onclick="adminDeleteMsg('${m.key}','${m._path}',this.closest('[data-key]'))" style="background:rgba(180,30,30,0.4);border:1px solid #6a2222;color:#ff6666;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;flex-shrink:0;">🗑</button>
+    </div>`;
+  }).join('');
+  
+  if (msgs.length === 0) listEl.innerHTML = '<div style="color:#553333;font-size:12px;text-align:center;padding:10px;">কোনো message নেই</div>';
+};
+
+window.adminDeleteMsg = async function(key, el) {
+  if (!adminUnlocked) return;
+  if (!confirm('এই message মুছে ফেলবে?')) return;
+  const msgObj = (await get(ref(db,'messages/'+key))).exists() ? {path:'messages'} : {path:'chat_lite/messages'};
+  await remove(ref(db, msgObj.path + '/' + key));
+  el.style.opacity = '0.3';
+  el.style.pointerEvents = 'none';
+  showToast('✅ Message মুছে গেছে');
+};
+
+window.adminDeleteAll = async function() {
+  if (!adminUnlocked) return;
+  if (!confirm('⚠️ সব messages মুছে যাবে! নিশ্চিত?')) return;
+  if (!confirm('সত্যিই সব মুছে ফেলবে? এটা undo করা যাবে না!')) return;
+  await remove(msgsRef);
+  showToast('💣 সব messages মুছে গেছে');
+  adminLoadMsgs();
+};
+
 window.scrollToMsg = function(id) {
   const container = document.getElementById("messages");
   if (!container) return;
@@ -3981,7 +4147,7 @@ window.toggleRecording = async function() {
       btn.style.display = 'none';
       updatePlusVoiceLabel();
       const blob = new Blob(audioChunks, { type: audioChunks[0]?.type || 'audio/webm' });
-      await uploadVoice(blob);
+      showVoicePreview(blob);
     };
     mediaRecorder.start();
     isRecording = true;
@@ -3995,6 +4161,41 @@ window.toggleRecording = async function() {
     setStatus('⚠ মাইক্রোফোন access পাওয়া যায়নি', true);
   }
 }
+
+
+// ── VOICE PREVIEW ─────────────────────────────────────────
+let _voiceBlob = null;
+
+function showVoicePreview(blob) {
+  _voiceBlob = blob;
+  const modal = document.getElementById('voice-preview-modal');
+  const audio = document.getElementById('voice-preview-audio');
+  const sizeEl = document.getElementById('voice-preview-size');
+  const url = URL.createObjectURL(blob);
+  audio.src = url;
+  const kb = (blob.size / 1024).toFixed(0);
+  sizeEl.textContent = kb + ' KB';
+  modal.style.display = 'flex';
+}
+
+window.discardVoicePreview = function() {
+  _voiceBlob = null;
+  const modal = document.getElementById('voice-preview-modal');
+  const audio = document.getElementById('voice-preview-audio');
+  audio.pause(); audio.src = '';
+  modal.style.display = 'none';
+};
+
+window.sendVoicePreview = async function() {
+  if (!_voiceBlob) return;
+  const blob = _voiceBlob;
+  const modal = document.getElementById('voice-preview-modal');
+  const audio = document.getElementById('voice-preview-audio');
+  audio.pause(); audio.src = '';
+  modal.style.display = 'none';
+  _voiceBlob = null;
+  await uploadVoice(blob);
+};
 
 async function uploadVoice(blob) {
   const progressEl = document.getElementById('upload-progress');
@@ -5727,6 +5928,7 @@ window.sendEmergency = async function() {
   <div class="dot-item" onclick="dotAction('music')"><span class="dot-item-icon">🎵</span>Synced Music</div>
   <div class="dot-item" onclick="dotAction('theme')"><span class="dot-item-icon">🎨</span>Theme</div>
   <div class="dot-item" onclick="dotAction('settings')"><span class="dot-item-icon">⚙️</span>Settings</div>
+  <div class="dot-item" onclick="toggleDotMenu();openDevPanel()"><span class="dot-item-icon">🛠️</span>Developer Panel</div>
   <div class="dot-item" onclick="dotAction('restrict')"><span class="dot-item-icon">🔇</span>Restrict</div>
   <div class="dot-item" onclick="dotAction('gallery')"><span class="dot-item-icon">🖼️</span>Photos</div>
   <div class="dot-item" onclick="dotAction('archive-view')"><span class="dot-item-icon">🗂️</span>Archive দেখো</div>
