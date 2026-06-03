@@ -14,7 +14,7 @@
   .plus-item-label { font-size:13px; color:#ccbbff; font-weight:500; }
   /* msg-input bigger */
   #msg-input { font-size:15px; min-height:42px; max-height:120px; padding:11px 14px; border-radius:22px; }
- 
+
 </style>
 <title>🌙 Anon Chat</title>
 <link rel="manifest" href="manifest.json">
@@ -1515,8 +1515,8 @@ function checkCode() {
 <!-- YouTube IFrame API (loaded dynamically when music panel opens) -->
 <!-- Firebase SDKs -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, orderByKey, endBefore, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, orderByKey, endBefore, onDisconnect } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
 
 // ── CONFIG ──────────────────────────────────────────────
@@ -3681,7 +3681,6 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('focus', () => { updateSeen(); });
 
-}
 function updateSeen() {
   if (!allMessages.length) return;
   if (document.hidden) return;
@@ -3713,12 +3712,6 @@ window.scrollToMsg = function(id) {
 };
 
 function renderMessages() {
-  try { _renderMessagesInner(); } catch(e) {
-    console.error('renderMessages error:', e);
-    document.getElementById('messages').innerHTML = `<div style="color:#ff6666;padding:20px;text-align:center;font-size:12px;">⚠ Render error: ${e.message}<br><br><button onclick="location.reload()" style="background:#3a1a7e;border:none;color:#fff;padding:8px 16px;border-radius:8px;cursor:pointer;">Reload</button></div>`;
-  }
-}
-function _renderMessagesInner() {
   const container = document.getElementById("messages");
   const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
   document.getElementById("msg-count").textContent = allMessages.length;
