@@ -3805,21 +3805,43 @@ window.adminLoadMsgs = async function() {
   // onValue দিয়ে একবার load (get() timeout এড়াতে)
   const msgs = [];
   
+  // সব possible paths থেকে load করো
+  const pathsToLoad = ['messages', 'chat_lite/messages'];
+
+  // Archive batches থেকেও load করো
   await new Promise(resolve => {
-    const unsub = onValue(msgsRef, snap => {
+    const unsub = onValue(ref(db, 'archive'), snap => {
       unsub();
-      if (snap.exists()) snap.forEach(c => msgs.push({ key: c.key, _path: 'messages', ...c.val() }));
+      if (snap.exists()) {
+        snap.forEach(batch => {
+          // প্রতিটা batch-এ messages array আছে
+          const d = batch.val();
+          if (d && d.messages) {
+            Object.entries(d.messages).forEach(([k, v]) => {
+              msgs.push({ key: k, _path: 'archive/' + batch.key + '/messages', ...v });
+            });
+          } else if (d && typeof d === 'object') {
+            // flat structure হলে
+            Object.entries(d).forEach(([k, v]) => {
+              if (v && v.ts) msgs.push({ key: k, _path: 'archive/' + batch.key, ...v });
+            });
+          }
+        });
+      }
       resolve();
     }, { onlyOnce: true });
   });
 
-  await new Promise(resolve => {
-    const unsub = onValue(liteMsgsRef, snap => {
-      unsub();
-      if (snap.exists()) snap.forEach(c => msgs.push({ key: c.key, _path: 'chat_lite/messages', ...c.val() }));
-      resolve();
-    }, { onlyOnce: true });
-  });
+  // messages + chat_lite/messages
+  for (const path of pathsToLoad) {
+    await new Promise(resolve => {
+      const unsub = onValue(ref(db, path), snap => {
+        unsub();
+        if (snap.exists()) snap.forEach(c => msgs.push({ key: c.key, _path: path, ...c.val() }));
+        resolve();
+      }, { onlyOnce: true });
+    });
+  }
 
   if (!msgs.length) {
     listEl.innerHTML = '<div style="color:#553333;font-size:12px;text-align:center;padding:10px;">কোনো message নেই</div>';
