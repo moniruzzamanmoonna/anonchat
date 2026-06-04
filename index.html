@@ -1580,7 +1580,7 @@ function checkCode() {
 <!-- Firebase SDKs -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, orderByKey, endBefore, onDisconnect } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+import { getDatabase, ref, push, onValue, update, remove, set, get, query, limitToLast, orderByKey, endBefore, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
 
 // ── CONFIG ──────────────────────────────────────────────
@@ -1600,6 +1600,15 @@ const EMOJIS = ['🤍','🙂','😑','😆','😮','😢','👍','🥀','🪦'];
 // ── INIT ────────────────────────────────────────────────
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+// Track Firebase server clock offset so "last seen" is accurate across devices.
+window.__serverTimeOffset = 0;
+try {
+  onValue(ref(db, '.info/serverTimeOffset'), snap => {
+    const v = snap.val();
+    if (typeof v === 'number') window.__serverTimeOffset = v;
+  });
+} catch(e) {}
+window.serverNow = () => Date.now() + (window.__serverTimeOffset || 0);
 // Auth removed — app uses passcode security instead
 // ── CLOUDINARY CONFIG ───────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "djado1b65";
@@ -1616,6 +1625,19 @@ const tttRef = ref(db, "tictactoe");
 const notesRef = ref(db, "notes");
 const pinRef = ref(db, "pinned");
 const restrictRef = ref(db, "restrict");
+window.__restrictRef = restrictRef;
+window.__setRestrict = (data) => set(restrictRef, data);
+
+// expose for aesthetics tools
+setInterval(() => {
+  try {
+    window.myRole = (typeof myRole !== 'undefined') ? myRole : window.myRole;
+    window.allMessages = (typeof allMessages !== 'undefined') ? allMessages : window.allMessages;
+    window.nicknames = (typeof nicknames !== 'undefined') ? nicknames : window.nicknames;
+    if (typeof sendSystemMsg === 'function') window.sendSystemMsg = sendSystemMsg;
+  } catch(e){}
+}, 1500);
+
 const bannedWordsRef = ref(db, "bannedWords");
 const gameChatRef = ref(db, "gameChat");
 const musicRef = ref(db, "musicSync");
@@ -2666,7 +2688,7 @@ function updateGamePresence() {
   if (!p || !p.last) {
     status = `${otherIcon} offline 🔴`;
   } else {
-    const diff = Date.now() - Number(p.last);
+    const diff = Math.max(0, window.serverNow() - Number(p.last));
     if (diff < 10000) status = `${otherIcon} online 🟢`;
     else if (diff < 60000) status = `${otherIcon} ${Math.floor(diff/1000)}s আগে`;
     else status = `${otherIcon} offline 🔴`;
@@ -3631,7 +3653,8 @@ function updateCountdownPreview() {
 function pingPresence() {
   if (!myRole) return;
   const myPresRef = ref(db, `presence/${myRole}`);
-  update(myPresRef, { last: Date.now(), typing: isTyping ? 1 : 0, online: true }).catch(() => {});
+  // serverTimestamp() makes "last" a real server-side ms, eliminating device-clock skew.
+  update(myPresRef, { last: serverTimestamp(), typing: isTyping ? 1 : 0, online: true }).catch(() => {});
 }
 
 function updatePresence() {
@@ -3657,14 +3680,14 @@ function updatePresence() {
     return;
   }
 
-  if (p.typing && (Date.now() - Number(p.last)) < 5000) {
+  if (p.typing && (window.serverNow() - Number(p.last)) < 5000) {
     typingEl.style.display = "flex";
     typingText.textContent = otherName + " লিখছে...";
   } else {
     typingEl.style.display = "none";
   }
 
-  const diff = Date.now() - Number(p.last);
+  const diff = Math.max(0, window.serverNow() - Number(p.last));
   
   const isOnline = diff < 15000; // 15s — ping প্রতি 10s, তাই accurate
   let status, dotColor, bgColor, borderColor;
@@ -5981,5 +6004,478 @@ window.sendEmergency = async function() {
   <div class="dot-item" onclick="window.location.href='chat-lite.html'"><span class="dot-item-icon">🌤️</span>Go to Light</div>
   <div class="dot-item danger" onclick="toggleDotMenu();openEmergencyModal()"><span class="dot-item-icon">🆘</span>Emergency Call</div>
 </div>
+
+<style id="aesthetics-styles">
+/* ── Animated background layer ─────────────────────────── */
+#fx-bg { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; }
+#fx-bg .aurora { position:absolute; width:55vmax; height:55vmax; border-radius:50%;
+  filter:blur(80px); opacity:0.35; mix-blend-mode:screen; animation:aurora-drift 28s ease-in-out infinite; }
+#fx-bg .aurora.a1 { background:radial-gradient(circle, var(--fx-a1,#5a2a9e) 0%, transparent 65%); top:-20vmax; left:-15vmax; }
+#fx-bg .aurora.a2 { background:radial-gradient(circle, var(--fx-a2,#1a4a8a) 0%, transparent 65%); bottom:-25vmax; right:-20vmax; animation-delay:-9s; animation-duration:34s; }
+#fx-bg .aurora.a3 { background:radial-gradient(circle, var(--fx-a3,#aa3a7e) 0%, transparent 70%); top:30%; left:40%; opacity:0.22; animation-delay:-16s; animation-duration:40s; }
+@keyframes aurora-drift {
+  0%,100% { transform:translate(0,0) scale(1); }
+  33%     { transform:translate(6vmax,-4vmax) scale(1.08); }
+  66%     { transform:translate(-5vmax,5vmax) scale(0.95); }
+}
+#fx-bg .stars { position:absolute; inset:0;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.7), transparent 50%),
+    radial-gradient(1px 1px at 70% 20%, rgba(200,220,255,0.6), transparent 50%),
+    radial-gradient(1px 1px at 40% 70%, rgba(255,230,255,0.5), transparent 50%),
+    radial-gradient(2px 2px at 85% 60%, rgba(255,255,255,0.55), transparent 50%),
+    radial-gradient(1px 1px at 15% 85%, rgba(220,200,255,0.5), transparent 50%),
+    radial-gradient(1.5px 1.5px at 55% 45%, rgba(255,255,255,0.6), transparent 50%),
+    radial-gradient(1px 1px at 90% 90%, rgba(180,200,255,0.5), transparent 50%);
+  animation:star-twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes star-twinkle { 0% { opacity:0.55; } 100% { opacity:1; } }
+body[data-fx="off"] #fx-bg { display:none; }
+
+/* ── Message pop-in animation ──────────────────────────── */
+.msg-wrapper { animation:msg-pop 0.32s cubic-bezier(0.34,1.56,0.64,1) both; }
+@keyframes msg-pop {
+  0%   { opacity:0; transform:translateY(8px) scale(0.96); }
+  100% { opacity:1; transform:translateY(0)   scale(1); }
+}
+.bubble { transition:filter 0.15s, transform 0.18s ease-out; }
+
+/* ── Bubble shape variants (toggled via body[data-bubble]) ── */
+body[data-bubble="round"]   .me .bubble    { border-radius:22px 22px 8px 22px; }
+body[data-bubble="round"]   .other .bubble { border-radius:22px 22px 22px 8px; }
+body[data-bubble="square"]  .me .bubble,
+body[data-bubble="square"]  .other .bubble { border-radius:6px; }
+body[data-bubble="cloud"]   .me .bubble    { border-radius:26px 26px 4px 26px / 22px 22px 4px 22px; }
+body[data-bubble="cloud"]   .other .bubble { border-radius:26px 26px 26px 4px / 22px 22px 22px 4px; }
+body[data-bubble="paper"]   .me .bubble,
+body[data-bubble="paper"]   .other .bubble { border-radius:14px 2px 14px 2px; }
+
+/* ── Font variants ─────────────────────────────────────── */
+body[data-font="serif"]   { font-family:'Hind Siliguri', Georgia, serif; }
+body[data-font="mono"]    { font-family:'Hind Siliguri', 'JetBrains Mono', ui-monospace, monospace; }
+body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', sans-serif; }
+
+/* ── Floating aesthetics button + panel ────────────────── */
+#aesthetics-fab {
+  position:fixed; top:78px; right:10px; z-index:450;
+  width:38px; height:38px; border-radius:50%;
+  background:linear-gradient(135deg,#5a2a9e,#aa3a7e);
+  border:1px solid rgba(255,255,255,0.18);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; cursor:pointer; box-shadow:0 4px 14px rgba(90,40,160,0.55);
+  transition:transform 0.18s; user-select:none;
+}
+#aesthetics-fab:active { transform:scale(0.92); }
+#aesthetics-fab::after {
+  content:''; position:absolute; inset:-3px; border-radius:50%;
+  background:linear-gradient(135deg,#aa3a7e,#5a2a9e); opacity:0.6;
+  filter:blur(8px); z-index:-1; animation:fab-pulse 3s ease-in-out infinite;
+}
+@keyframes fab-pulse { 0%,100%{opacity:0.4}50%{opacity:0.75} }
+
+#aesthetics-panel {
+  position:fixed; top:120px; right:10px; z-index:500;
+  width:280px; max-height:75vh; overflow-y:auto;
+  background:rgba(14,10,30,0.96); backdrop-filter:blur(20px);
+  border:1px solid rgba(140,110,210,0.35); border-radius:18px;
+  padding:14px; color:#d6ccff; box-shadow:0 12px 40px rgba(0,0,0,0.6);
+  opacity:0; transform:translateY(-8px) scale(0.96); pointer-events:none;
+  transition:all 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+#aesthetics-panel.open { opacity:1; transform:translateY(0) scale(1); pointer-events:all; }
+#aesthetics-panel h4 { font-size:12px; color:#9988dd; font-weight:500; margin:10px 0 6px; letter-spacing:0.5px; text-transform:uppercase; }
+#aesthetics-panel h4:first-child { margin-top:0; }
+.aes-row { display:flex; gap:6px; flex-wrap:wrap; }
+.aes-chip {
+  padding:7px 11px; border-radius:12px; font-size:12px; cursor:pointer;
+  background:rgba(40,28,70,0.7); border:1px solid rgba(110,90,170,0.4);
+  color:#c4b5e8; transition:all 0.15s; user-select:none;
+}
+.aes-chip:active { transform:scale(0.94); }
+.aes-chip.active { background:linear-gradient(135deg,#5a2a9e,#aa3a7e); color:#fff; border-color:transparent; box-shadow:0 0 0 1px rgba(255,255,255,0.15) inset; }
+.aes-swatch {
+  width:34px; height:34px; border-radius:10px; cursor:pointer;
+  border:2px solid transparent; transition:all 0.15s; position:relative;
+}
+.aes-swatch.active { border-color:#fff; transform:scale(1.08); }
+.aes-swatch:active { transform:scale(0.92); }
+</style>
+
+<div id="fx-bg" aria-hidden="true">
+  <div class="aurora a1"></div>
+  <div class="aurora a2"></div>
+  <div class="aurora a3"></div>
+  <div class="stars"></div>
+</div>
+
+<div id="aesthetics-fab" title="Aesthetics" onclick="toggleAesthetics(event)">✨</div>
+<div id="aesthetics-panel" onclick="event.stopPropagation()">
+  <h4>🎨 Theme</h4>
+  <div class="aes-row" id="aes-themes"></div>
+  <h4>💬 Bubble shape</h4>
+  <div class="aes-row" id="aes-bubbles"></div>
+  <h4>🔤 Font</h4>
+  <div class="aes-row" id="aes-fonts"></div>
+  <h4>🌌 Background FX</h4>
+  <div class="aes-row" id="aes-fx"></div>
+</div>
+
+<script>
+(function(){
+  const THEMES = {
+    midnight: { label:'Midnight',  swatch:'linear-gradient(135deg,#0a0a1a,#2a1a5e)',
+      vars:{ '--bg':'#0a0a1a','--header-bg':'rgba(10,10,30,0.95)',
+             '--bme-bg':'linear-gradient(135deg,#2a1a5e,#3a1a6e)','--bme-border':'#4a2a8a','--bme-color':'#d0c0ff',
+             '--bot-bg':'linear-gradient(135deg,#0a2040,#0a3050)','--bot-border':'#1a5070','--bot-color':'#b0d8f0',
+             '--title':'#c0b0ff','--send-bg':'linear-gradient(135deg,#3a1a7e,#5a2a9e)',
+             '--input-bg':'rgba(20,20,50,0.8)','--input-border':'#2a2a5a','--border':'#2a2a4a',
+             '--fx-a1':'#5a2a9e','--fx-a2':'#1a4a8a','--fx-a3':'#aa3a7e' } },
+    aurora: { label:'Aurora', swatch:'linear-gradient(135deg,#0a1a2a,#2a8a6e)',
+      vars:{ '--bg':'#06121e','--header-bg':'rgba(8,18,30,0.95)',
+             '--bme-bg':'linear-gradient(135deg,#0a4a5a,#1a6a7e)','--bme-border':'#1a8aaa','--bme-color':'#c0f0ee',
+             '--bot-bg':'linear-gradient(135deg,#1a3a2a,#2a5a3e)','--bot-border':'#3a8a5a','--bot-color':'#c0eed0',
+             '--title':'#a0f0d0','--send-bg':'linear-gradient(135deg,#1a8a8a,#3aaa6e)',
+             '--input-bg':'rgba(10,30,40,0.8)','--input-border':'#1a4a5a','--border':'#1a3a4a',
+             '--fx-a1':'#1a8aaa','--fx-a2':'#2a8a6e','--fx-a3':'#5acca8' } },
+    sakura: { label:'Sakura', swatch:'linear-gradient(135deg,#1a0a1a,#cc6688)',
+      vars:{ '--bg':'#1a0a14','--header-bg':'rgba(26,10,20,0.95)',
+             '--bme-bg':'linear-gradient(135deg,#6a1a3e,#aa3a6e)','--bme-border':'#cc4a7e','--bme-color':'#ffd0e0',
+             '--bot-bg':'linear-gradient(135deg,#3a1a2a,#5a2a4e)','--bot-border':'#7a3a5e','--bot-color':'#f0c0d0',
+             '--title':'#ffb0c8','--send-bg':'linear-gradient(135deg,#cc4a7e,#ee6aaa)',
+             '--input-bg':'rgba(40,15,28,0.8)','--input-border':'#4a1a30','--border':'#3a1a28',
+             '--fx-a1':'#cc4a7e','--fx-a2':'#aa3a6e','--fx-a3':'#ff8aaa' } },
+    sunset: { label:'Sunset', swatch:'linear-gradient(135deg,#1a0a1a,#ff7a3a)',
+      vars:{ '--bg':'#180814','--header-bg':'rgba(24,8,20,0.95)',
+             '--bme-bg':'linear-gradient(135deg,#7a2a1a,#cc5a2a)','--bme-border':'#ee7a3a','--bme-color':'#ffe0c8',
+             '--bot-bg':'linear-gradient(135deg,#3a1a3a,#5a2a5a)','--bot-border':'#7a3a7a','--bot-color':'#f0d0e8',
+             '--title':'#ffc0a0','--send-bg':'linear-gradient(135deg,#ee6a2a,#ff9a4a)',
+             '--input-bg':'rgba(40,18,24,0.8)','--input-border':'#4a1a20','--border':'#3a1a20',
+             '--fx-a1':'#ee6a2a','--fx-a2':'#aa3a8a','--fx-a3':'#ffaa5a' } },
+    noir: { label:'Noir', swatch:'linear-gradient(135deg,#0a0a0a,#444)',
+      vars:{ '--bg':'#070708','--header-bg':'rgba(10,10,12,0.95)',
+             '--bme-bg':'linear-gradient(135deg,#1a1a1e,#2a2a30)','--bme-border':'#3a3a44','--bme-color':'#dcdce0',
+             '--bot-bg':'linear-gradient(135deg,#141418,#1e1e24)','--bot-border':'#2a2a32','--bot-color':'#b8b8c0',
+             '--title':'#e8e8ee','--send-bg':'linear-gradient(135deg,#3a3a44,#5a5a66)',
+             '--input-bg':'rgba(18,18,22,0.85)','--input-border':'#2a2a30','--border':'#1e1e24',
+             '--fx-a1':'#444455','--fx-a2':'#222233','--fx-a3':'#666677' } },
+    forest: { label:'Forest', swatch:'linear-gradient(135deg,#0a1a0e,#3a7a4a)',
+      vars:{ '--bg':'#08120c','--header-bg':'rgba(10,20,14,0.95)',
+             '--bme-bg':'linear-gradient(135deg,#1a4a2e,#2a6a3e)','--bme-border':'#3a8a4e','--bme-color':'#d0f0d8',
+             '--bot-bg':'linear-gradient(135deg,#2a3a1e,#3a5a2e)','--bot-border':'#5a7a3e','--bot-color':'#e0e8b8',
+             '--title':'#a8e0a0','--send-bg':'linear-gradient(135deg,#3a8a4e,#5aaa6e)',
+             '--input-bg':'rgba(14,28,18,0.8)','--input-border':'#1e3a24','--border':'#1a3020',
+             '--fx-a1':'#3a8a4e','--fx-a2':'#1a6a4e','--fx-a3':'#88cc5a' } },
+  };
+
+  const BUBBLES = [
+    { id:'default', label:'Default' },
+    { id:'round',   label:'Round'   },
+    { id:'square',  label:'Square'  },
+    { id:'cloud',   label:'Cloud'   },
+    { id:'paper',   label:'Paper'   },
+  ];
+  const FONTS = [
+    { id:'default', label:'Hind' },
+    { id:'serif',   label:'Serif' },
+    { id:'mono',    label:'Mono' },
+    { id:'rounded', label:'Rounded' },
+  ];
+  const FX = [
+    { id:'on',  label:'On'  },
+    { id:'off', label:'Off' },
+  ];
+
+  function applyTheme(id) {
+    const t = THEMES[id] || THEMES.midnight;
+    const root = document.documentElement;
+    Object.entries(t.vars).forEach(([k,v]) => root.style.setProperty(k,v));
+    localStorage.setItem('aesTheme', id);
+    document.querySelectorAll('#aes-themes .aes-swatch').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+  function applyBubble(id) {
+    document.body.setAttribute('data-bubble', id);
+    localStorage.setItem('aesBubble', id);
+    document.querySelectorAll('#aes-bubbles .aes-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+  function applyFont(id) {
+    document.body.setAttribute('data-font', id);
+    localStorage.setItem('aesFont', id);
+    document.querySelectorAll('#aes-fonts .aes-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+  function applyFx(id) {
+    document.body.setAttribute('data-fx', id);
+    localStorage.setItem('aesFx', id);
+    document.querySelectorAll('#aes-fx .aes-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+
+  function build() {
+    const tWrap = document.getElementById('aes-themes');
+    Object.entries(THEMES).forEach(([id, t]) => {
+      const s = document.createElement('div');
+      s.className = 'aes-swatch'; s.dataset.id = id;
+      s.style.background = t.swatch; s.title = t.label;
+      s.onclick = () => applyTheme(id);
+      tWrap.appendChild(s);
+    });
+    const bWrap = document.getElementById('aes-bubbles');
+    BUBBLES.forEach(b => {
+      const c = document.createElement('div');
+      c.className = 'aes-chip'; c.dataset.id = b.id; c.textContent = b.label;
+      c.onclick = () => applyBubble(b.id);
+      bWrap.appendChild(c);
+    });
+    const fWrap = document.getElementById('aes-fonts');
+    FONTS.forEach(f => {
+      const c = document.createElement('div');
+      c.className = 'aes-chip'; c.dataset.id = f.id; c.textContent = f.label;
+      c.onclick = () => applyFont(f.id);
+      fWrap.appendChild(c);
+    });
+    const xWrap = document.getElementById('aes-fx');
+    FX.forEach(f => {
+      const c = document.createElement('div');
+      c.className = 'aes-chip'; c.dataset.id = f.id; c.textContent = f.label;
+      c.onclick = () => applyFx(f.id);
+      xWrap.appendChild(c);
+    });
+    applyTheme(localStorage.getItem('aesTheme')  || 'midnight');
+    applyBubble(localStorage.getItem('aesBubble') || 'default');
+    applyFont(localStorage.getItem('aesFont')    || 'default');
+    applyFx(localStorage.getItem('aesFx')        || 'on');
+  }
+
+  window.toggleAesthetics = function(e) {
+    e && e.stopPropagation();
+    document.getElementById('aesthetics-panel').classList.toggle('open');
+  };
+  document.addEventListener('click', (e) => {
+    const p = document.getElementById('aesthetics-panel');
+    const fab = document.getElementById('aesthetics-fab');
+    if (!p || !fab) return;
+    if (!p.contains(e.target) && !fab.contains(e.target)) p.classList.remove('open');
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
+  else build();
+})();
+</script>
+
+
+<!-- ╭───── NIGHT MODE + FUNNY ANALYTICS + 1H BLOCK ─────╮ -->
+<style>
+/* Softer night UI (auto after midnight, 00:00–05:59 local) */
+body.night-mode {
+  filter: saturate(0.85) brightness(0.92);
+}
+body.night-mode #aesthetics-fab,
+body.night-mode .send-btn,
+body.night-mode .header,
+body.night-mode #msg-input {
+  transition: all .6s ease;
+}
+body.night-mode .msg .bubble,
+body.night-mode .bubble {
+  border-radius: 22px !important;
+  box-shadow: 0 2px 18px rgba(160,140,220,0.10) !important;
+  backdrop-filter: blur(6px);
+}
+body.night-mode #msg-input {
+  border-radius: 22px !important;
+  background: rgba(30,20,50,0.55) !important;
+}
+body.night-mode .send-btn { border-radius: 50% !important; }
+body.night-mode .header { letter-spacing: 0.5px; }
+body.night-mode #fx-bg { opacity: 0.55; }
+
+#night-badge {
+  position: fixed; top: 12px; left: 12px; z-index: 9998;
+  font-size: 11px; padding: 5px 10px; border-radius: 999px;
+  background: linear-gradient(135deg,#2a1a5e,#5a2a9e); color:#e8dcff;
+  box-shadow: 0 4px 14px rgba(90,42,158,.35);
+  opacity: 0; transform: translateY(-6px); transition: all .4s ease;
+  pointer-events: none; font-family: inherit;
+}
+body.night-mode #night-badge { opacity: 1; transform: translateY(0); }
+
+/* Aesthetics panel extras */
+#aes-tools { display:flex; flex-direction:column; gap:8px; }
+.aes-tool-btn {
+  background: linear-gradient(135deg, rgba(90,42,158,.25), rgba(40,20,90,.25));
+  border: 1px solid rgba(170,130,255,.25);
+  color: #e0d8ff; padding: 9px 12px; border-radius: 12px;
+  font-size: 13px; cursor: pointer; text-align: left;
+  display:flex; align-items:center; gap:8px; transition: all .2s;
+}
+.aes-tool-btn:hover { transform: translateY(-1px); border-color: rgba(170,130,255,.55); }
+.aes-tool-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Stats modal */
+#stats-modal {
+  position: fixed; inset: 0; z-index: 10001;
+  background: rgba(5,5,15,0.75); backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center; padding: 18px;
+  animation: stm-fade .25s ease;
+}
+#stats-modal.open { display:flex; }
+@keyframes stm-fade { from { opacity:0 } to { opacity:1 } }
+#stats-modal .card {
+  width: min(420px, 100%); max-height: 86vh; overflow-y:auto;
+  background: linear-gradient(160deg, #1a0f2e 0%, #0e0a1f 100%);
+  border: 1px solid rgba(170,130,255,.25);
+  border-radius: 20px; padding: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  animation: stm-pop .35s cubic-bezier(.2,1.2,.4,1);
+}
+@keyframes stm-pop { from { transform: scale(.9); opacity:0 } to { transform: scale(1); opacity:1 } }
+#stats-modal h3 { margin:0 0 4px; color:#e8dcff; font-size:18px; }
+#stats-modal .sub { color:#9988dd; font-size:12px; margin-bottom:14px; }
+.stat-row {
+  background: rgba(255,255,255,0.03);
+  border:1px solid rgba(170,130,255,.12);
+  border-radius:14px; padding:12px 14px; margin-bottom:10px;
+}
+.stat-row .lbl { font-size:11px; color:#9988dd; text-transform:uppercase; letter-spacing:.6px; }
+.stat-row .val { font-size:18px; color:#fff; margin-top:4px; font-weight:600; word-break:break-word; }
+.stat-row .note { font-size:12px; color:#a8a0c8; margin-top:3px; }
+#stats-close {
+  margin-top: 10px; width:100%; padding:11px; border:none; border-radius:12px;
+  background: linear-gradient(135deg,#3a1a7e,#5a2a9e); color:#fff; cursor:pointer; font-size:14px;
+}
+</style>
+
+<div id="night-badge">🌙 Night Mode</div>
+
+<div id="stats-modal" onclick="if(event.target===this) this.classList.remove('open')">
+  <div class="card">
+    <h3>📊 Funny analytics</h3>
+    <div class="sub">তোমাদের চ্যাট বিশ্লেষণ</div>
+    <div id="stats-body">Loading…</div>
+    <button id="stats-close" onclick="document.getElementById('stats-modal').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ── 1) NIGHT MODE auto-switch (00:00 – 05:59 local) ──
+  function checkNight(){
+    const h = new Date().getHours();
+    const isNight = (h >= 0 && h < 6);
+    document.body.classList.toggle('night-mode', isNight);
+  }
+  checkNight();
+  setInterval(checkNight, 60 * 1000);
+
+  // ── 2) FUNNY ANALYTICS ──
+  const STOP = new Set(("a an the i you me my your we us our is are am was were be been being do does did have has had will would can could should may might of in on at to for and or but if so it this that these those not no yes ki ke ka ko kya hai hain ho na to se mein bhi tum tumi ami amar tomar tor mor o oi e ei ar na hai ache acche kore korte korbo theke jonno jonne hocche").split(" "));
+  window.showFunnyStats = function(){
+    const modal = document.getElementById('stats-modal');
+    const body  = document.getElementById('stats-body');
+    modal.classList.add('open');
+    body.innerHTML = '<div class="stat-row"><div class="val">⏳ Counting…</div></div>';
+    try {
+      const msgs = (window.allMessages || []).filter(m => m && m.text && !m.system);
+      if (!msgs.length) { body.innerHTML = '<div class="stat-row"><div class="val">😶 No messages yet</div></div>'; return; }
+
+      // most used word
+      const wc = {};
+      msgs.forEach(m => {
+        (m.text||"").toLowerCase().split(/[\s.,!?…।\n\r"'()\[\]{}—–-]+/).forEach(w => {
+          if (!w || w.length < 2 || STOP.has(w) || /^\d+$/.test(w)) return;
+          wc[w] = (wc[w]||0) + 1;
+        });
+      });
+      const topWord = Object.entries(wc).sort((a,b)=>b[1]-a[1])[0];
+
+      // most active hour
+      const hc = new Array(24).fill(0);
+      msgs.forEach(m => { if (m.ts) hc[new Date(m.ts).getHours()]++; });
+      let topHour = 0, topHourCnt = 0;
+      hc.forEach((c,i)=>{ if (c>topHourCnt){ topHourCnt=c; topHour=i; } });
+      const hr12 = ((topHour+11)%12)+1, ampm = topHour<12?'AM':'PM';
+
+      // longest convo (consecutive msgs with gap < 10 min)
+      const sorted = [...msgs].filter(m=>m.ts).sort((a,b)=>a.ts-b.ts);
+      let bestLen = 0, bestStart = null, bestEnd = null, curLen = 0, curStart = null, prev = null;
+      sorted.forEach(m => {
+        if (prev && (m.ts - prev) < 10*60*1000) { curLen++; }
+        else { curLen = 1; curStart = m.ts; }
+        if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; bestEnd = m.ts; }
+        prev = m.ts;
+      });
+      const dur = bestStart ? Math.round((bestEnd-bestStart)/60000) : 0;
+      const dateStr = bestStart ? new Date(bestStart).toLocaleDateString() : '—';
+
+      // total msgs per role
+      const ca = msgs.filter(m=>m.role==='A').length;
+      const cb = msgs.filter(m=>m.role==='B').length;
+
+      body.innerHTML = `
+        <div class="stat-row"><div class="lbl">🔥 Most used word</div>
+          <div class="val">${topWord ? topWord[0] : '—'}</div>
+          <div class="note">${topWord ? topWord[1]+' times' : ''}</div></div>
+        <div class="stat-row"><div class="lbl">⏰ Most active hour</div>
+          <div class="val">${hr12} ${ampm}</div>
+          <div class="note">${topHourCnt} messages around ${topHour}:00</div></div>
+        <div class="stat-row"><div class="lbl">💬 Longest convo</div>
+          <div class="val">${bestLen} messages</div>
+          <div class="note">${dur} min · ${dateStr}</div></div>
+        <div class="stat-row"><div class="lbl">⭐🌙 Message count</div>
+          <div class="val">Star ${ca} · Moon ${cb}</div>
+          <div class="note">Total ${msgs.length}</div></div>
+      `;
+    } catch(e){
+      body.innerHTML = '<div class="stat-row"><div class="val">⚠ Error: '+ (e.message||e) +'</div></div>';
+    }
+  };
+
+  // ── 3) BLOCK FOR 1 HOUR ──
+  window.blockOtherFor1h = async function(){
+    try {
+      if (!window.myRole) { alert('Wait — connecting…'); return; }
+      const other = window.myRole === 'A' ? 'B' : 'A';
+      const myName = (window.nicknames && window.nicknames[window.myRole]) || (window.myRole==='A'?'Star':'Moon');
+      if (!confirm('Block the other for 1 hour?')) return;
+      const until = (window.serverNow ? window.serverNow() : Date.now()) + 60*60*1000;
+      const mod = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+      // Reuse existing restrictRef via window if available, else build a path
+      if (window.__restrictRef && window.__setRestrict) {
+        await window.__setRestrict({ target: other, until, by: window.myRole });
+      } else {
+        // Fallback: write through a global helper if exposed; else use sendSystemMsg
+      }
+      if (typeof window.sendSystemMsg === 'function') {
+        window.sendSystemMsg(`🚫 ${myName} blocked the other side for 1 hour`);
+      }
+      document.getElementById('aesthetics-panel').classList.remove('open');
+    } catch(e){ alert('Could not block: '+(e.message||e)); }
+  };
+
+  // ── 4) Inject tools into the existing aesthetics panel ──
+  function addTools(){
+    const panel = document.getElementById('aesthetics-panel');
+    if (!panel || panel.querySelector('#aes-tools')) return;
+    const h = document.createElement('h4'); h.textContent = '🛠 Tools';
+    const wrap = document.createElement('div'); wrap.id = 'aes-tools';
+    wrap.innerHTML = `
+      <button class="aes-tool-btn" onclick="showFunnyStats()">📊 Funny analytics</button>
+      <button class="aes-tool-btn" onclick="blockOtherFor1h()">🚫 Block other (1 hour)</button>
+    `;
+    panel.appendChild(h);
+    panel.appendChild(wrap);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addTools);
+  else addTools();
+})();
+</script>
+<!-- ╰─────────────────────────────────────────────────────╯ -->
+
 </body>
 </html>
