@@ -3875,22 +3875,29 @@ window.adminLoadMsgs = async function() {
   if (msgs.length === 0) listEl.innerHTML = '<div style="color:#553333;font-size:12px;text-align:center;padding:10px;">কোনো message নেই</div>';
 };
 
-window.adminDeleteMsg = async function(key, el) {
+window.adminDeleteMsg = async function(key, path, el) {
   if (!adminUnlocked) return;
-  if (!confirm('এই message মুছে ফেলবে?')) return;
-  const msgObj = (await get(ref(db,'messages/'+key))).exists() ? {path:'messages'} : {path:'chat_lite/messages'};
-  await remove(ref(db, msgObj.path + '/' + key));
-  el.style.opacity = '0.3';
-  el.style.pointerEvents = 'none';
-  showToast('✅ Message মুছে গেছে');
+  await remove(ref(db, path + '/' + key));
+  if (el) { el.style.transition='all .3s'; el.style.opacity='0'; setTimeout(()=>{ el.style.display='none'; },300); }
+  showToast('✅ মুছে গেছে');
+  // count update
+  const countEl = document.getElementById('dev-msg-count');
+  if (countEl) {
+    const cur = parseInt(countEl.textContent) || 0;
+    countEl.textContent = 'মোট ' + Math.max(0, cur-1) + 'টি message';
+  }
 };
 
 window.adminDeleteAll = async function() {
   if (!adminUnlocked) return;
-  if (!confirm('⚠️ সব messages মুছে যাবে! নিশ্চিত?')) return;
+  if (!confirm('⚠️ সব messages + archive মুছে যাবে! নিশ্চিত?')) return;
   if (!confirm('সত্যিই সব মুছে ফেলবে? এটা undo করা যাবে না!')) return;
-  await remove(msgsRef);
-  showToast('💣 সব messages মুছে গেছে');
+  await Promise.all([
+    remove(ref(db, 'messages')),
+    remove(ref(db, 'chat_lite/messages')),
+    remove(ref(db, 'archive'))
+  ]);
+  showToast('💣 সব মুছে গেছে');
   adminLoadMsgs();
 };
 
@@ -4048,7 +4055,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
           </div>`;
         }
       } else {
-        bubbleContent = `<video src="${vurl}" controls playsinline style="max-width:220px;max-height:300px;border-radius:10px;display:block;"></video>`;
+        bubbleContent = `<video src="${vurl}" controls playsinline preload="metadata" style="max-width:220px;max-height:300px;border-radius:10px;display:block;" onerror="this.insertAdjacentHTML('afterend','<a href=\\"${vurl}\\" target=\\"_blank\\" style=\\"color:#99aaff;font-size:12px;\\">🔗 Open video</a>');this.remove()"></video>`;
       }
     } else if (msg.text && msg.text.startsWith('[voice]')) {
       const url = msg.text.replace('[voice]','');
@@ -4260,7 +4267,9 @@ async function uploadVoice(blob) {
 window.vpToggle = function(btn, url) {
   let audio = vpAudios[url];
   if (!audio) {
-    audio = new Audio(url);
+    audio = new Audio();
+    audio.crossOrigin = "anonymous";
+    audio.src = url;
     vpAudios[url] = audio;
     const player = btn.closest('.voice-player');
     const fill = player.querySelector('.vp-fill');
@@ -4270,8 +4279,22 @@ window.vpToggle = function(btn, url) {
       timeEl.textContent = fmtTime(audio.currentTime);
     };
     audio.onended = () => { btn.textContent = '▶️'; fill.style.width = '0%'; timeEl.textContent = fmtTime(audio.duration); };
+    audio.onerror = (e) => {
+      console.error('Audio error:', e, url);
+      // fallback — direct link দাও
+      btn.textContent = '🔗';
+      btn.onclick = () => window.open(url, '_blank');
+      showToast('⚠ Play error — tap 🔗 to open');
+    };
   }
-  if (audio.paused) { audio.play(); btn.textContent = '⏸️'; }
+  if (audio.paused) {
+    audio.play().then(() => { btn.textContent = '⏸️'; }).catch(err => {
+      console.error('Play failed:', err);
+      // autoplay policy — user gesture দরকার, retry
+      btn.textContent = '▶️';
+      showToast('⚠ Tap again to play');
+    });
+  }
   else { audio.pause(); btn.textContent = '▶️'; }
 }
 
