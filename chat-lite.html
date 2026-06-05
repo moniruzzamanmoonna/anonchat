@@ -292,14 +292,16 @@ function init(){
 function startPresence(){
   const myPresRef=ref(db,`presence/${role}`);
   function ping(typing=false){
-    const data={last:Date.now(),online:true,typing:typing};
+    const data={last:Date.now(),online:true,typing:typing,device:'L'};
     update(myPresRef,data);
   }
   ping();
   onDisconnect(myPresRef).update({online:false,typing:false,last:Date.now()}).catch(()=>{});
   // Background এ গেলেও ping চলে — visibility change এ immediate ping
   presTimer=setInterval(()=>{ ping(); },10000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) ping(); });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ ping(); } });
+  window.addEventListener('focus', ()=>{ ping(); });
+  window.addEventListener('pageshow', ()=>{ ping(); });
   setInterval(()=>{ updateHeader(); },1000);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
   unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); }));
@@ -314,7 +316,7 @@ function updateHeader(){
   else typ.style.display='none';
   const diff=Date.now()-Number(p.last);
   let txt,dot;
-  if(diff<15000){txt='Online';dot='#22ee66';}
+  if(diff<15000){const dev=p.device?(' · '+p.device):'';txt='Online'+dev;dot='#22ee66';}
   else{
     const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
     txt=h>0?`Last Active ${h}h ${m}m ago`:m>0?`Last Active ${m}m ${sec}s ago`:`Last Active ${sec}s ago`;
@@ -351,7 +353,21 @@ function renderMsgs(){
     } else {
       body=`<span>${esc(m.text||'')}${edited}</span>`;
     }
-    const reacts=m.reactions?`<div class="reacts">${Object.entries(Object.values(m.reactions).reduce((a,e)=>{a[e]=(a[e]||0)+1;return a;},{})).map(([e,c])=>`<span class="rpill" data-id="${m.id}" data-e="${e}">${e}${c>1?c:''}</span>`).join('')}</div>`:'';
+    let reacts='';
+    if(m.reactions){
+      const r=m.reactions;
+      // Main format: {emoji:[roles]} or legacy {role:emoji}
+      let entries=[];
+      if(typeof Object.values(r)[0]==='string'){
+        // Legacy Lite format {A:'❤️'} → convert
+        const tmp={};
+        Object.entries(r).forEach(([rl,em])=>{ if(!tmp[em])tmp[em]=[]; tmp[em].push(rl); });
+        entries=Object.entries(tmp);
+      } else {
+        entries=Object.entries(r).filter(([,v])=>v&&v.length);
+      }
+      if(entries.length) reacts=`<div class="reacts">${entries.map(([e,v])=>`<span class="rpill ${Array.isArray(v)&&v.includes(role)?'mine':''}" data-id="${m.id}" data-e="${e}">${e}${v.length>1?v.length:''}</span>`).join('')}</div>`;
+    }
     return `<div class="mw ${cls}">${rep}<div class="bubble" data-id="${m.id}">${body}</div>${reacts}<div class="mtime">${time} ${status}</div></div>`;
   }).join('');
 
@@ -487,7 +503,22 @@ $('ctx-edit').onclick=()=>{
 };
 
 async function addReact(id,emoji){
-  await update(ref(db,`messages/${id}/reactions`),{[role]:emoji});
+  // Main format: {emoji: [roleA, roleB]} — get current then update
+  const snap = await get(ref(db,`messages/${id}/reactions`));
+  const r = snap.val() || {};
+  // Remove this role from all other emojis first
+  Object.keys(r).forEach(e => {
+    if(Array.isArray(r[e])) r[e] = r[e].filter(x=>x!==role);
+    else if(r[e]===role) delete r[e];
+  });
+  // Add role to new emoji
+  if(emoji){
+    if(!r[emoji]) r[emoji]=[];
+    if(Array.isArray(r[emoji]) && !r[emoji].includes(role)) r[emoji].push(role);
+  }
+  await update(ref(db,`messages/${id}/reactions`), Object.fromEntries(
+    Object.entries(r).map(([e,v])=>[e, Array.isArray(v)?v:[v].filter(Boolean)])
+  ));
 }
 
 // ── SETTINGS ──
