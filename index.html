@@ -715,6 +715,15 @@
 </style>
 </head>
 <body>
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  console.error('APP ERROR:', msg, 'line:', line, err);
+  // Toast দেখাও
+  setTimeout(function() {
+    if (window.showToast) showToast('⚠ Error: ' + msg.substring(0,60));
+  }, 2000);
+};
+</script>
 
 <!-- LOCK -->
 <div id="lock-screen" style="color:var(--body-color,#e0e0ff)">
@@ -2322,18 +2331,7 @@ window.muteNotes = function(hours) {
 
 // ── THREE DOT MENU — handled by standalone script at bottom ──
 
-window.dotAction = function(action) {
-  document.getElementById("dot-menu").classList.remove("menu-open");
-  if (action === "search") openSearchPanel();
-  else if (action === "games") openGamesPanel();
-  else if (action === "theme") openThemePanel();
-  else if (action === "settings") openSettingsPanel();
-  else if (action === "restrict") openRestrictPanel();
-  else if (action === "gallery") openGallery();
-  else if (action === "archive-view") openArchivePanel();
-  else if (action === "archive-now") archiveOldMessages();
-  else if (action === "music") openMusicPanel();
-}
+// dotAction handled by standalone script below
 
 // ── WEATHER PANEL ─────────────────────────────────────────
 const WEATHER_CONDITIONS = {
@@ -3654,7 +3652,7 @@ function pingPresence() {
   if (!myRole) return;
   const myPresRef = ref(db, `presence/${myRole}`);
   // serverTimestamp() makes "last" a real server-side ms, eliminating device-clock skew.
-  update(myPresRef, { last: serverTimestamp(), typing: isTyping ? 1 : 0, online: true }).catch(() => {});
+  update(myPresRef, { last: serverTimestamp(), typing: isTyping ? 1 : 0, online: true, device: 'M' }).catch(() => {});
 }
 
 function updatePresence() {
@@ -3692,7 +3690,8 @@ function updatePresence() {
   const isOnline = diff < 15000; // 15s — ping প্রতি 10s, তাই accurate
   let status, dotColor, bgColor, borderColor;
   if (isOnline) {
-    status = "Online";
+    const devLabel = p.device === "L" ? " · L" : p.device === "M" ? " · M" : "";
+    status = "Online" + devLabel;
     dotColor = "#22ee66";
     bgColor = "rgba(20,60,30,0.6)";
     borderColor = "#1a5a30";
@@ -3723,7 +3722,7 @@ function updatePresence() {
   const pillDot  = document.getElementById("header-presence-dot");
   if (pillText) {
     if (isOnline) {
-      pillText.textContent = "Online";
+      pillText.textContent = "Online" + (p.device === "L" ? " · L" : p.device === "M" ? " · M" : "");
       if (pillDot) { pillDot.className = "stats-live-dot online"; pillDot.style.background=''; pillDot.style.boxShadow=''; }
     } else if (diff < 43200000) {
       const totalSec = Math.floor(diff / 1000);
@@ -5984,6 +5983,7 @@ window.sendEmergency = async function() {
       'archive-view': window.openArchivePanel,
       'archive-now': window.archiveOldMessages,
       music: window.openMusicPanel,
+      'dev': window.openDevPanel,
     };
     if (fns[action]) fns[action]();
   };
@@ -5996,7 +5996,7 @@ window.sendEmergency = async function() {
   <div class="dot-item" onclick="dotAction('music')"><span class="dot-item-icon">🎵</span>Synced Music</div>
   <div class="dot-item" onclick="dotAction('theme')"><span class="dot-item-icon">🎨</span>Theme</div>
   <div class="dot-item" onclick="dotAction('settings')"><span class="dot-item-icon">⚙️</span>Settings</div>
-  <div class="dot-item" onclick="toggleDotMenu();openDevPanel()"><span class="dot-item-icon">🛠️</span>Developer Panel</div>
+  <div class="dot-item" onclick="dotAction('dev')"><span class="dot-item-icon">🛠️</span>Developer Panel</div>
   <div class="dot-item" onclick="dotAction('restrict')"><span class="dot-item-icon">🔇</span>Restrict</div>
   <div class="dot-item" onclick="dotAction('gallery')"><span class="dot-item-icon">🖼️</span>Photos</div>
   <div class="dot-item" onclick="dotAction('archive-view')"><span class="dot-item-icon">🗂️</span>Archive দেখো</div>
