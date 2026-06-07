@@ -292,7 +292,7 @@ function init(){
 function startPresence(){
   const myPresRef=ref(db,`presence/${role}`);
   function ping(typing=false){
-    const data={last:Date.now(),online:true,typing:typing,device:'L'};
+    const data={last:serverNow(),online:true,typing:typing,device:'L'};
     update(myPresRef,data);
   }
   ping();
