@@ -316,7 +316,7 @@ function updateHeader(){
   else typ.style.display='none';
   const diff=Date.now()-Number(p.last);
   let txt,dot;
-  if(diff<15000){const dev=p.device?(' · '+p.device):'';txt='Online'+dev;dot='#22ee66';}
+  if(diff<15000){const devBadge=p.device?`<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:3px;">${p.device}</span>`:'';txt='Online'+devBadge;dot='#22ee66';}
   else{
     const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
     txt=h>0?`Last Active ${h}h ${m}m ago`:m>0?`Last Active ${m}m ${sec}s ago`:`Last Active ${sec}s ago`;
@@ -335,7 +335,7 @@ function renderMsgs(){
     const me=m.role===role, cls=me?'me':'them';
     const time=m.ts?new Date(m.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
     const status=me?(m.seen?'<span style="color:#80ccff">Seen</span>':m.delivered?'<span style="color:var(--sub)">Delivered</span>':''):'';
-    const orig=m.replyTo?msgs.find(x=>x.id===m.replyTo):null;
+    const orig=m.replyTo?msgs.find(x=>x.id===m.replyTo||String(x.ts)===String(m.replyTo)):null;
     const rep=orig?`<div class="rpreview" data-replyid="${orig.id}" style="cursor:pointer">↩ ${esc(orig.text||'📷')}</div>`:'';
     const edited=m.edited?'<span style="font-size:9px;color:var(--sub);margin-left:4px;opacity:.7">(edited)</span>':'';
     let body;
@@ -419,6 +419,11 @@ function renderMsgs(){
 function markSeen(){
   const other=role==='A'?'B':'A';
   msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>update(ref(db,`messages/${m.id}`),{seen:true}));
+  // Main এর মতো presence.seen update করো
+  const realMsgs=msgs.filter(m=>!m.system&&m.role!==role);
+  if(!realMsgs.length) return;
+  const last=realMsgs[realMsgs.length-1];
+  if(last&&last.ts) update(ref(db,`presence/${role}`),{seen:last.ts}).catch(()=>{});
 }
 
 // ── SEND ──
@@ -438,7 +443,7 @@ async function doSend(){
     clearEdit(); return;
   }
   const m={role,text:txt,ts:Date.now(),delivered:true};
-  if(replyTo) m.replyTo=replyTo.id;
+  if(replyTo) m.replyTo=String(replyTo.ts||replyTo.id);
   clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto'; $('send-btn').disabled=true;
   await push(msgsRef,m);
 }
@@ -451,7 +456,7 @@ $('photo-input').onchange=async function(){
   try{
     const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,{method:'POST',body:fd});
     const d=await r.json();
-    await push(msgsRef,{role,text:'[photo]'+d.secure_url,ts:Date.now(),delivered:true,replyTo:replyTo?replyTo.id:''});
+    await push(msgsRef,{role,text:'[photo]'+d.secure_url,ts:Date.now(),delivered:true,replyTo:replyTo?String(replyTo.ts||replyTo.id):''});
     toast('✅ Photo sent!');
   }catch(e){toast('❌ Upload failed');}
   this.value='';
