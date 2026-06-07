@@ -2494,7 +2494,7 @@ function buildSearchResultsHtml(results, query, fromArchive) {
     const escaped = esc(msg.text);
     const highlighted = escaped.replace(new RegExp(`(${escapedQ})`, 'gi'), '<mark style="background:rgba(160,120,255,0.4);color:#e0d0ff;border-radius:3px;padding:0 2px;">$1</mark>');
     const archiveBadge = msg._fromArchive ? `<span style="font-size:9px;background:rgba(80,60,140,0.5);border-radius:6px;padding:1px 5px;color:#9988cc;margin-left:4px;">🗂️</span>` : '';
-    const clickAction = msg._fromArchive ? '' : `onclick="jumpToMsg('${msg.ts,'--presence-text':'#1a3a2a','--presence-text':'#1a3a2a','--presence-text':'#1a3a2a'}')"`;
+    const clickAction = msg._fromArchive ? '' : `onclick="jumpToMsg('${msg.ts}')"`;
     return `<div ${clickAction} style="background:${isMe?'rgba(42,26,94,0.5)':'rgba(10,32,64,0.5)'};border:1px solid ${isMe?'#3a2a6a':'#1a4060'};border-radius:12px;padding:10px 14px;${msg._fromArchive?'':'cursor:pointer;'}transition:filter 0.15s;" ${msg._fromArchive?'':'onmouseenter="this.style.filter=\'brightness(1.3)\'" onmouseleave="this.style.filter=\'\'"'}>
       <div style="display:flex;justify-content:space-between;margin-bottom:5px;align-items:center;">
         <span style="font-size:11px;color:${isMe?'#a090d0':'#6090b0'};font-weight:600;">${ICONS[msg.role]} ${name}${archiveBadge}</span>
@@ -6155,14 +6155,14 @@ body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', 
              '--bot-bg':'linear-gradient(135deg,#3a1a2a,#5a2a4e)','--bot-border':'#7a3a5e','--bot-color':'#f0c0d0',
              '--title':'#ffb0c8','--send-bg':'linear-gradient(135deg,#cc4a7e,#ee6aaa)',
              '--input-bg':'rgba(40,15,28,0.8)','--input-border':'#4a1a30','--border':'#3a1a28',
-             '--fx-a1':'#cc4a7e','--fx-a2':'#aa3a6e','--fx-a3':'#ff8aaa' } }, },
+             '--fx-a1':'#cc4a7e','--fx-a2':'#aa3a6e','--fx-a3':'#ff8aaa' } },
     noir: { label:'Noir', swatch:'linear-gradient(135deg,#0a0a0a,#444)',
       vars:{ '--bg':'#070708','--header-bg':'rgba(10,10,12,0.95)',
              '--bme-bg':'linear-gradient(135deg,#1a1a1e,#2a2a30)','--bme-border':'#3a3a44','--bme-color':'#dcdce0',
              '--bot-bg':'linear-gradient(135deg,#141418,#1e1e24)','--bot-border':'#2a2a32','--bot-color':'#b8b8c0',
              '--title':'#e8e8ee','--send-bg':'linear-gradient(135deg,#3a3a44,#5a5a66)',
              '--input-bg':'rgba(18,18,22,0.85)','--input-border':'#2a2a30','--border':'#1e1e24',
-             '--fx-a1':'#444455','--fx-a2':'#222233','--fx-a3':'#666677' } }, },
+             '--fx-a1':'#444455','--fx-a2':'#222233','--fx-a3':'#666677' } },
   };
 
   const BUBBLES = [
