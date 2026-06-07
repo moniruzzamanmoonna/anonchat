@@ -10,6 +10,7 @@
 .theme-rose{--bg:#1a0a12;--hdr:#220d18;--brd:#3a1a28;--ba:#2a0a1a;--bb:#1a0a22;--tx:#ffe0ee;--sub:#886;--ttl:#ffb0cc;--snd:#7a1a3a;--ibg:#1a0a18;}
 .theme-ocean{--bg:#0a1520;--hdr:#0d1f2d;--brd:#1a3040;--ba:#0a2035;--bb:#0a2a1a;--tx:#d0eeff;--sub:#578;--ttl:#80ccff;--snd:#0a4a7a;--ibg:#0d1828;}
 .theme-forest{--bg:#0a150a;--hdr:#0d1f0d;--brd:#1a301a;--ba:#102010;--bb:#0a1a20;--tx:#d0ffd0;--sub:#686;--ttl:#90ee90;--snd:#1a4a1a;--ibg:#0d180d;}
+.theme-oled{--bg:#000000;--hdr:#000000;--brd:#1a1a1a;--ba:#0d0d0d;--bb:#111111;--tx:#ffffff;--sub:#555;--ttl:#aaaaaa;--snd:#222222;--ibg:#0a0a0a;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',sans-serif;height:100dvh;display:flex;flex-direction:column;max-width:600px;margin:0 auto;overflow:hidden;}
 .screen{display:none;flex-direction:column;align-items:center;justify-content:center;height:100dvh;gap:20px;padding:32px;}
@@ -180,11 +181,12 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
   </div>
   <div class="ssec">
     <div class="slbl">🎨 THEME</div>
-    <div class="tgrid">
+    <div class="tgrid" style="grid-template-columns:1fr 1fr 1fr;">
       <div class="topt" data-theme="dark">🌑 Dark</div>
       <div class="topt" data-theme="rose">🌸 Rose</div>
       <div class="topt" data-theme="ocean">🌊 Ocean</div>
       <div class="topt" data-theme="forest">🌿 Forest</div>
+      <div class="topt" data-theme="oled">⬛ OLED</div>
     </div>
   </div>
   <div class="ssec">
@@ -238,12 +240,15 @@ const CLOUD="djado1b65", PRESET="voiceee";
 
 const app=initializeApp(FB), db=getDatabase(app);
 const msgsRef=ref(db,"messages"), liteMsgsRef=ref(db,"chat_lite/messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
-const themeRef=ref(db,"theme"), bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics");
+const bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics");
+
+const serverNow = () => Date.now() + (window.__serverTimeOffset || 0);
 
 let role=null, nicks={A:"Star",B:"Moon"}, theme="dark";
 let msgs=[], replyTo=null, editMsg=null, ctxMsg=null, bwords=[], ntfyTopics={A:"anonchat_star",B:"anonchat_moon"};
 let presData={}, emergDismissTs=0;
-let unsubs=[], presTimer, typingTimer;
+let unsubs=[], presTimer, headerTimer, typingTimer;
+let _visHandler, _focusHandler, _pagesHandler;
 
 function $(id){return document.getElementById(id);}
 function show(id){$(id).classList.add('active');}
@@ -276,9 +281,9 @@ function startChat(r){
 
 // ── INIT ──
 function init(){
+  applyTheme(localStorage.getItem('lite_theme')||'dark');
   startPresence();
   unsubs.push(onValue(nickRef,s=>{ const d=s.val()||{}; nicks.A=d.A||'Star'; nicks.B=d.B||'Moon'; updateHeader(); refreshNickInputs(); }));
-  unsubs.push(onValue(themeRef,s=>applyTheme(s.val()||'dark')));
   unsubs.push(onValue(bwRef,s=>{ bwords=Object.values(s.val()||{}); renderBwords(); }));
   unsubs.push(onValue(query(msgsRef,limitToLast(50)),s=>{
     msgs=[]; s.forEach(c=>{ const v=c.val(); if(v.system||v.role==='system') return; msgs.push({id:c.key,...v}); });
@@ -292,17 +297,20 @@ function init(){
 function startPresence(){
   const myPresRef=ref(db,`presence/${role}`);
   function ping(typing=false){
-    const data={last:serverNow(),online:true,typing:typing,device:'L'};
-    update(myPresRef,data);
+    update(myPresRef,{last:serverNow(),online:true,typing:typing,device:'L'}).catch(()=>{});
   }
   ping();
-  onDisconnect(myPresRef).update({online:false,typing:false,last:Date.now()}).catch(()=>{});
-  // Background এ গেলেও ping চলে — visibility change এ immediate ping
+  // onDisconnect এ serverTimestamp নয়, remove করাই ভালো — stale data থাকবে না
+  onDisconnect(myPresRef).remove().catch(()=>{});
   presTimer=setInterval(()=>{ ping(); },10000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ ping(); } });
-  window.addEventListener('focus', ()=>{ ping(); });
-  window.addEventListener('pageshow', ()=>{ ping(); });
-  setInterval(()=>{ updateHeader(); },1000);
+  headerTimer=setInterval(()=>{ updateHeader(); },1000);
+  // named handlers — back button এ remove করা যাবে
+  _visHandler=()=>{ if(!document.hidden) ping(); };
+  _focusHandler=()=>{ ping(); };
+  _pagesHandler=()=>{ ping(); };
+  document.addEventListener('visibilitychange',_visHandler);
+  window.addEventListener('focus',_focusHandler);
+  window.addEventListener('pageshow',_pagesHandler);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
   unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); }));
 }
@@ -544,7 +552,7 @@ $('save-other-nick').onclick=async()=>{
 };
 
 // Theme
-document.querySelectorAll('.topt').forEach(el=>el.addEventListener('click',()=>set(themeRef,el.dataset.theme)));
+document.querySelectorAll('.topt').forEach(el=>el.addEventListener('click',()=>{ applyTheme(el.dataset.theme); localStorage.setItem('lite_theme',el.dataset.theme); }));
 function applyTheme(t){
   theme=t; document.body.className=t==='dark'?'':`theme-${t}`;
   document.querySelectorAll('.topt').forEach(el=>el.classList.toggle('active',el.dataset.theme===t));
@@ -654,8 +662,13 @@ window.viewArchive = async function(id) {
 $('back-btn').onclick=()=>{
   unsubs.forEach(u=>u()); unsubs=[];
   clearInterval(presTimer);
+  clearInterval(headerTimer);
+  clearTimeout(typingTimer);
+  document.removeEventListener('visibilitychange',_visHandler);
+  window.removeEventListener('focus',_focusHandler);
+  window.removeEventListener('pageshow',_pagesHandler);
   set(ref(db,`presence/${role}`),null);
-  role=null; msgs=[];
+  role=null; msgs=[]; presData={};
   $('chat-screen').style.display='none';
   $('archive-panel').style.display='none';
   show('role-screen');
