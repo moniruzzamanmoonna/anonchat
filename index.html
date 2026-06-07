@@ -630,7 +630,8 @@
   .emerg-incoming-title { font-size:15px; color:#fff; font-weight:600; }
   .emerg-incoming-sub { font-size:12px; color:#ffaaaa; margin-top:2px; }
   .emerg-dismiss { background:rgba(255,255,255,0.2); border:none; color:#fff; border-radius:8px; padding:6px 14px; cursor:pointer; font-size:13px; }
-  textarea { flex:1; background:var(--input-bg); border:1px solid var(--input-border); border-radius:12px; color:var(--input-color,#e0e0ff); padding:10px 14px; font-size:14px; font-family:inherit; resize:none; outline:none; line-height:1.5; }
+  textarea { flex:1; background:var(--input-bg); border:1px solid var(--input-border); border-radius:12px; color:var(--input-color,#e0e0ff); -webkit-text-fill-color:var(--input-color,#e0e0ff); padding:10px 14px; font-size:14px; font-family:inherit; resize:none; outline:none; line-height:1.5; }
+  textarea::placeholder { color:var(--placeholder-color,#4a4a7a); opacity:1; }
   textarea:focus { border-color:#4a4a8a; }
   textarea::placeholder { color:var(--placeholder-color,#3a3a6a); }
   .send-btn { background:var(--send-bg); border:none; border-radius:50%; color:#e0d0ff; padding:0; width:38px; height:38px; cursor:pointer; font-size:16px; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all 0.2s; box-shadow:0 2px 12px rgba(80,40,160,0.4); }
@@ -1688,17 +1689,17 @@ let archiveBtnChecked = false;
 // ── THEMES ──────────────────────────────────────────────
 const THEMES = {
   purple: { '--bg':'#0a0a1a','--header-bg':'rgba(10,10,30,0.95)','--bme-bg':'linear-gradient(135deg,#2a1a5e,#3a1a6e)','--bme-border':'#4a2a8a','--bme-color':'#d0c0ff','--bot-bg':'linear-gradient(135deg,#0a2040,#0a3050)','--bot-border':'#1a5070','--bot-color':'#b0d8f0','--title':'#c0b0ff','--send-bg':'linear-gradient(135deg,#3a1a7e,#5a2a9e)','--ra-bg':'linear-gradient(135deg,#1a1a3e,#2a1a4e)','--ra-border':'#6060cc','--rb-bg':'linear-gradient(135deg,#0a2040,#1a3050)','--rb-border':'#3090aa','--input-bg':'rgba(20,20,50,0.8)','--input-border':'#2a2a5a','--border':'#2a2a4a' },
-  rose: { '--bg':'#0f0608','--header-bg':'rgba(20,5,12,0.95)','--bme-bg':'linear-gradient(135deg,#4a0a2a,#6a1a3a)','--bme-border':'#8a2a5a','--bme-color':'#ffd0e0','--bot-bg':'linear-gradient(135deg,#1a0510,#2a0a1a)','--bot-border':'#4a1a2a','--bot-color':'#f0b0c0','--title':'#ffb0c8','--send-bg':'linear-gradient(135deg,#7a1a4a,#aa2a6a)','--ra-bg':'linear-gradient(135deg,#2d0a1a,#4a1a2a)','--ra-border':'#aa3060','--rb-bg':'linear-gradient(135deg,#1a0a14,#2a0a1e)','--rb-border':'#703060','--input-bg':'rgba(30,10,20,0.8)','--input-border':'#3a1a2a','--border':'#2a0a1a' },
+  rose:   { '--bg':'#0f0608','--header-bg':'rgba(20,5,12,0.95)','--bme-bg':'linear-gradient(135deg,#4a0a2a,#6a1a3a)','--bme-border':'#8a2a5a','--bme-color':'#ffd0e0','--bot-bg':'linear-gradient(135deg,#1a0510,#2a0a1a)','--bot-border':'#4a1a2a','--bot-color':'#f0b0c0','--title':'#ffb0c8','--send-bg':'linear-gradient(135deg,#7a1a4a,#aa2a6a)','--ra-bg':'linear-gradient(135deg,#2d0a1a,#4a1a2a)','--ra-border':'#aa3060','--rb-bg':'linear-gradient(135deg,#1a0a14,#2a0a1e)','--rb-border':'#703060','--input-bg':'rgba(30,10,20,0.8)','--input-border':'#3a1a2a','--border':'#2a0a1a' },
   forest: { '--bg':'#060f06','--header-bg':'rgba(5,15,5,0.95)','--bme-bg':'linear-gradient(135deg,#0a3a0a,#1a5a1a)','--bme-border':'#2a7a2a','--bme-color':'#c0ffc0','--bot-bg':'linear-gradient(135deg,#0a1e10,#0a2a18)','--bot-border':'#1a4a28','--bot-color':'#a0e8b0','--title':'#80e880','--send-bg':'linear-gradient(135deg,#0a5a0a,#1a8a1a)','--ra-bg':'linear-gradient(135deg,#0a1e0a,#1a3a1a)','--ra-border':'#3a8a3a','--rb-bg':'linear-gradient(135deg,#0a1a10,#0a2a18)','--rb-border':'#2a6a40','--input-bg':'rgba(10,20,10,0.8)','--input-border':'#1a3a1a','--border':'#1a2a1a' },
-  black: { '--bg':'#000000','--header-bg':'rgba(0,0,0,0.98)','--bme-bg':'linear-gradient(135deg,#1a1a1a,#252525)','--bme-border':'#404040','--bme-color':'#e0e0e0','--bot-bg':'linear-gradient(135deg,#0d0d0d,#181818)','--bot-border':'#2a2a2a','--bot-color':'#c0c0c0','--title':'#ffffff','--send-bg':'linear-gradient(135deg,#2a2a2a,#404040)','--ra-bg':'linear-gradient(135deg,#111,#1e1e1e)','--ra-border':'#555','--rb-bg':'linear-gradient(135deg,#0a0a0a,#181818)','--rb-border':'#333','--input-bg':'rgba(15,15,15,0.9)','--input-border':'#2a2a2a','--border':'#1a1a1a' },
-  ocean: { '--bg':'#030d18','--header-bg':'rgba(3,12,22,0.95)','--bme-bg':'linear-gradient(135deg,#063050,#0a4870)','--bme-border':'#1060a0','--bme-color':'#b0d8ff','--bot-bg':'linear-gradient(135deg,#051525,#082035)','--bot-border':'#0a3050','--bot-color':'#80c0e0','--title':'#80c8ff','--send-bg':'linear-gradient(135deg,#0a4080,#1060b0)','--ra-bg':'linear-gradient(135deg,#051828,#0a2840)','--ra-border':'#1870c0','--rb-bg':'linear-gradient(135deg,#031020,#051828)','--rb-border':'#0a5080','--input-bg':'rgba(5,15,25,0.8)','--input-border':'#0a3050','--border':'#0a2040' },
+  black:  { '--bg':'#000000','--header-bg':'rgba(0,0,0,0.98)','--bme-bg':'linear-gradient(135deg,#1a1a1a,#252525)','--bme-border':'#404040','--bme-color':'#e0e0e0','--bot-bg':'linear-gradient(135deg,#0d0d0d,#181818)','--bot-border':'#2a2a2a','--bot-color':'#c0c0c0','--title':'#ffffff','--send-bg':'linear-gradient(135deg,#2a2a2a,#404040)','--ra-bg':'linear-gradient(135deg,#111,#1e1e1e)','--ra-border':'#555','--rb-bg':'linear-gradient(135deg,#0a0a0a,#181818)','--rb-border':'#333','--input-bg':'rgba(15,15,15,0.9)','--input-border':'#2a2a2a','--border':'#1a1a1a' },
+  ocean:  { '--bg':'#030d18','--header-bg':'rgba(3,12,22,0.95)','--bme-bg':'linear-gradient(135deg,#063050,#0a4870)','--bme-border':'#1060a0','--bme-color':'#b0d8ff','--bot-bg':'linear-gradient(135deg,#051525,#082035)','--bot-border':'#0a3050','--bot-color':'#80c0e0','--title':'#80c8ff','--send-bg':'linear-gradient(135deg,#0a4080,#1060b0)','--ra-bg':'linear-gradient(135deg,#051828,#0a2840)','--ra-border':'#1870c0','--rb-bg':'linear-gradient(135deg,#031020,#051828)','--rb-border':'#0a5080','--input-bg':'rgba(5,15,25,0.8)','--input-border':'#0a3050','--border':'#0a2040' },
   sunset: { '--bg':'#0f0800','--header-bg':'rgba(15,8,0,0.95)','--bme-bg':'linear-gradient(135deg,#3a1800,#5a2800)','--bme-border':'#8a4800','--bme-color':'#ffe0a0','--bot-bg':'linear-gradient(135deg,#1a0c00,#281400)','--bot-border':'#4a2800','--bot-color':'#f0c070','--title':'#ffcc66','--send-bg':'linear-gradient(135deg,#6a2800,#aa4800)','--ra-bg':'linear-gradient(135deg,#1e1000,#3a1800)','--ra-border':'#aa6000','--rb-bg':'linear-gradient(135deg,#140c00,#221400)','--rb-border':'#804000','--input-bg':'rgba(20,10,0,0.8)','--input-border':'#3a2000','--border':'#2a1500' },
-  pastel: { '--bg':'#fdf0f8','--header-bg':'rgba(253,240,248,0.97)','--bme-bg':'linear-gradient(135deg,#f7c5e8,#eac5f7)','--bme-border':'#e0a0d8','--bme-color':'#5a2a6a','--bot-bg':'linear-gradient(135deg,#c5daf7,#c5eff7)','--bot-border':'#90bce8','--bot-color':'#1a3a6a','--title':'#b060c0','--send-bg':'linear-gradient(135deg,#d070c0,#a050e0)','--ra-bg':'linear-gradient(135deg,#f5d8f0,#ecd8f5)','--ra-border':'#d0a0e0','--rb-bg':'linear-gradient(135deg,#d0e8fa,#c8f0fa)','--rb-border':'#80b8e8','--input-bg':'rgba(245,225,245,0.85)','--input-border':'#d8b0e0','--border':'#e0c0e8','--body-color':'#3a1a4a','--input-color':'#3a1a4a','--placeholder-color':'#c090d0','--hint-color':'#a070b0','--btn-color':'#ffffff' },
-  kawaii: { '--bg':'#fff0fa','--header-bg':'rgba(255,240,250,0.97)','--bme-bg':'linear-gradient(135deg,#ffb3d9,#ffcce0)','--bme-border':'#ff80b3','--bme-color':'#7a0040','--bot-bg':'linear-gradient(135deg,#b3d9ff,#cce8ff)','--bot-border':'#66aaff','--bot-color':'#003366','--title':'#ff4499','--send-bg':'linear-gradient(135deg,#ff66aa,#ff3388)','--ra-bg':'linear-gradient(135deg,#ffd6ec,#ffe6f3)','--ra-border':'#ffaacc','--rb-bg':'linear-gradient(135deg,#cce0ff,#ddeeff)','--rb-border':'#88bbff','--input-bg':'rgba(255,235,248,0.9)','--input-border':'#ffb3d4','--border':'#ffccdd','--body-color':'#660033','--input-color':'#660033','--placeholder-color':'#ffaac8','--hint-color':'#cc5588','--btn-color':'#ffffff' },
-  dpastel: { '--bg':'#0d0510','--header-bg':'rgba(13,5,16,0.97)','--bme-bg':'linear-gradient(135deg,#2a0a2a,#1a0a3a)','--bme-border':'#6a2a7a','--bme-color':'#f0c8f8','--bot-bg':'linear-gradient(135deg,#0a1028,#0a1a30)','--bot-border':'#2a4a8a','--bot-color':'#b8d0f8','--title':'#d8a0f0','--send-bg':'linear-gradient(135deg,#6a1a8a,#3a1a7a)','--ra-bg':'linear-gradient(135deg,#1e0a22,#160a2e)','--ra-border':'#8040a0','--rb-bg':'linear-gradient(135deg,#0a0e20,#0a1628)','--rb-border':'#2a5090','--input-bg':'rgba(18,8,24,0.85)','--input-border':'#4a1a6a','--border':'#2a1040','--body-color':'#e8c8f8','--input-color':'#e8c8f8','--placeholder-color':'#7a4a8a','--hint-color':'#9a6aaa','--btn-color':'#f0d0ff' },
-  dkawaii: { '--bg':'#100008','--header-bg':'rgba(16,0,8,0.97)','--bme-bg':'linear-gradient(135deg,#3a0028,#1a0040)','--bme-border':'#cc0066','--bme-color':'#ffc0e0','--bot-bg':'linear-gradient(135deg,#00102a,#001840)','--bot-border':'#0044cc','--bot-color':'#a0c8ff','--title':'#ff60aa','--send-bg':'linear-gradient(135deg,#cc0055,#8800cc)','--ra-bg':'linear-gradient(135deg,#280018,#180028)','--ra-border':'#ee0077','--rb-bg':'linear-gradient(135deg,#000c20,#001030)','--rb-border':'#0055ee','--input-bg':'rgba(16,0,12,0.88)','--input-border':'#aa0044','--border':'#220014','--body-color':'#ffd0e8','--input-color':'#ffd0e8','--placeholder-color':'#882255','--hint-color':'#cc3377','--btn-color':'#ffe0f0' },
-  dmatcha: { '--bg':'#020e02','--header-bg':'rgba(2,14,2,0.97)','--bme-bg':'linear-gradient(135deg,#0a2a0a,#1a2a00)','--bme-border':'#2a6a10','--bme-color':'#c8f0a0','--bot-bg':'linear-gradient(135deg,#0a1a08,#181400)','--bot-border':'#6a5000','--bot-color':'#f0d888','--title':'#70cc30','--send-bg':'linear-gradient(135deg,#2a6a00,#4a5a00)','--ra-bg':'linear-gradient(135deg,#081a06,#101400)','--ra-border':'#3a8818','--rb-bg':'linear-gradient(135deg,#081208,#120e00)','--rb-border':'#7a6600','--input-bg':'rgba(4,14,2,0.88)','--input-border':'#1a4a08','--border':'#102208','--body-color':'#c0e8a0','--input-color':'#c0e8a0','--placeholder-color':'#3a6a20','--hint-color':'#5a8a30','--btn-color':'#d0f0b0' },
-  matcha: { '--bg':'#f5faf0','--header-bg':'rgba(245,250,240,0.97)','--bme-bg':'linear-gradient(135deg,#c8e6b0,#d8f0b8)','--bme-border':'#90c870','--bme-color':'#2a4a10','--bot-bg':'linear-gradient(135deg,#f7e8c8,#faf0d8)','--bot-border':'#d8b870','--bot-color':'#5a3a00','--title':'#5a9a30','--send-bg':'linear-gradient(135deg,#6ab840,#4a9820)','--ra-bg':'linear-gradient(135deg,#d8eec8,#e4f4d0)','--ra-border':'#a0d070','--rb-bg':'linear-gradient(135deg,#f5e8c0,#faf2d8)','--rb-border':'#d0a840','--input-bg':'rgba(238,250,230,0.88)','--input-border':'#b8d898','--border':'#cce8b0','--body-color':'#1a3a00','--input-color':'#1a3a00','--placeholder-color':'#88bb60','--hint-color':'#5a8a30','--btn-color':'#ffffff' },
+  pastel: { '--bg':'#fdf0f8','--header-bg':'rgba(253,240,248,0.97)','--bme-bg':'linear-gradient(135deg,#f7c5e8,#eac5f7)','--bme-border':'#e0a0d8','--bme-color':'#5a2a6a','--bot-bg':'linear-gradient(135deg,#c5daf7,#c5eff7)','--bot-border':'#90bce8','--bot-color':'#1a3a6a','--title':'#b060c0','--send-bg':'linear-gradient(135deg,#d070c0,#a050e0)','--ra-bg':'linear-gradient(135deg,#f5d8f0,#ecd8f5)','--ra-border':'#d0a0e0','--rb-bg':'linear-gradient(135deg,#d0e8fa,#c8f0fa)','--rb-border':'#80b8e8','--input-bg':'rgba(245,225,245,0.85)','--input-border':'#d8b0e0','--border':'#e0c0e8','--body-color':'#3a1a4a','--input-color':'#3a1a4a','--placeholder-color':'#c090d0','--btn-color':'#ffffff' },
+  kawaii: { '--bg':'#fff0fa','--header-bg':'rgba(255,240,250,0.97)','--bme-bg':'linear-gradient(135deg,#ffb3d9,#ffcce0)','--bme-border':'#ff80b3','--bme-color':'#7a0040','--bot-bg':'linear-gradient(135deg,#b3d9ff,#cce8ff)','--bot-border':'#66aaff','--bot-color':'#003366','--title':'#ff4499','--send-bg':'linear-gradient(135deg,#ff66aa,#ff3388)','--ra-bg':'linear-gradient(135deg,#ffd6ec,#ffe6f3)','--ra-border':'#ffaacc','--rb-bg':'linear-gradient(135deg,#cce0ff,#ddeeff)','--rb-border':'#88bbff','--input-bg':'rgba(255,235,248,0.9)','--input-border':'#ffb3d4','--border':'#ffccdd','--body-color':'#660033','--input-color':'#660033','--placeholder-color':'#ffaac8','--btn-color':'#ffffff' },
+  matcha: { '--bg':'#f5faf0','--header-bg':'rgba(245,250,240,0.97)','--bme-bg':'linear-gradient(135deg,#c8e6b0,#d8f0b8)','--bme-border':'#90c870','--bme-color':'#2a4a10','--bot-bg':'linear-gradient(135deg,#f7e8c8,#faf0d8)','--bot-border':'#d8b870','--bot-color':'#5a3a00','--title':'#5a9a30','--send-bg':'linear-gradient(135deg,#6ab840,#4a9820)','--ra-bg':'linear-gradient(135deg,#d8eec8,#e4f4d0)','--ra-border':'#a0d070','--rb-bg':'linear-gradient(135deg,#f5e8c0,#faf2d8)','--rb-border':'#d0a840','--input-bg':'rgba(238,250,230,0.88)','--input-border':'#b8d898','--border':'#cce8b0','--body-color':'#1a3a00','--input-color':'#1a3a00','--placeholder-color':'#88bb60','--btn-color':'#ffffff' },
+  dpastel:{ '--bg':'#0d0510','--header-bg':'rgba(13,5,16,0.97)','--bme-bg':'linear-gradient(135deg,#2a0a2a,#1a0a3a)','--bme-border':'#6a2a7a','--bme-color':'#f0c8f8','--bot-bg':'linear-gradient(135deg,#0a1028,#0a1a30)','--bot-border':'#2a4a8a','--bot-color':'#b8d0f8','--title':'#d8a0f0','--send-bg':'linear-gradient(135deg,#6a1a8a,#3a1a7a)','--ra-bg':'linear-gradient(135deg,#1e0a22,#160a2e)','--ra-border':'#8040a0','--rb-bg':'linear-gradient(135deg,#0a0e20,#0a1628)','--rb-border':'#2a5090','--input-bg':'rgba(18,8,24,0.85)','--input-border':'#4a1a6a','--border':'#2a1040','--body-color':'#e8c8f8','--input-color':'#e8c8f8','--placeholder-color':'#7a4a8a','--btn-color':'#f0d0ff' },
+  dkawaii:{ '--bg':'#100008','--header-bg':'rgba(16,0,8,0.97)','--bme-bg':'linear-gradient(135deg,#3a0028,#1a0040)','--bme-border':'#cc0066','--bme-color':'#ffc0e0','--bot-bg':'linear-gradient(135deg,#00102a,#001840)','--bot-border':'#0044cc','--bot-color':'#a0c8ff','--title':'#ff60aa','--send-bg':'linear-gradient(135deg,#cc0055,#8800cc)','--ra-bg':'linear-gradient(135deg,#280018,#180028)','--ra-border':'#ee0077','--rb-bg':'linear-gradient(135deg,#000c20,#001030)','--rb-border':'#0055ee','--input-bg':'rgba(16,0,12,0.88)','--input-border':'#aa0044','--border':'#220014','--body-color':'#ffd0e8','--input-color':'#ffd0e8','--placeholder-color':'#882255','--btn-color':'#ffe0f0' },
+  dmatcha:{ '--bg':'#020e02','--header-bg':'rgba(2,14,2,0.97)','--bme-bg':'linear-gradient(135deg,#0a2a0a,#1a2a00)','--bme-border':'#2a6a10','--bme-color':'#c8f0a0','--bot-bg':'linear-gradient(135deg,#0a1a08,#181400)','--bot-border':'#6a5000','--bot-color':'#f0d888','--title':'#70cc30','--send-bg':'linear-gradient(135deg,#2a6a00,#4a5a00)','--ra-bg':'linear-gradient(135deg,#081a06,#101400)','--ra-border':'#3a8818','--rb-bg':'linear-gradient(135deg,#081208,#120e00)','--rb-border':'#7a6600','--input-bg':'rgba(4,14,2,0.88)','--input-border':'#1a4a08','--border':'#102208','--body-color':'#c0e8a0','--input-color':'#c0e8a0','--placeholder-color':'#3a6a20','--btn-color':'#d0f0b0' },
 };
 
 // ── LOCK ────────────────────────────────────────────────
@@ -2254,25 +2255,24 @@ window.closeArchiveMsgViewer = function() {
 
 // ── THEME PANEL ──────────────────────────────────────────
 const THEME_LIST = [
-  { id:'purple', label:'Purple Night', bg:'linear-gradient(135deg,#1a1a3e,#3a1a6e)' },
-  { id:'rose', label:'Rose Dark', bg:'linear-gradient(135deg,#2d0a1a,#5a1a3a)' },
-  { id:'forest', label:'Forest', bg:'linear-gradient(135deg,#0a1a0a,#1a3a1a)' },
-  { id:'black', label:'Black', bg:'linear-gradient(135deg,#000,#111)' },
-  { id:'ocean', label:'Ocean', bg:'linear-gradient(135deg,#0a1a2a,#0a2a4a)' },
-  { id:'sunset', label:'Sunset', bg:'linear-gradient(135deg,#1a0a0a,#3a1a0a)' },
-  { id:'pastel', label:'Pastel', bg:'linear-gradient(135deg,#f7c5e0,#c5d8f7)' },
-  { id:'kawaii', label:'Kawaii', bg:'linear-gradient(135deg,#ffb3d9,#b3d9ff)' },
-  { id:'matcha', label:'Matcha', bg:'linear-gradient(135deg,#c8e6c2,#f7e8c8)' },
-  { id:'dpastel', label:'Dark Pastel', bg:'linear-gradient(135deg,#1a0a1a,#0a0a2a)' },
-  { id:'dkawaii', label:'Dark Kawaii', bg:'linear-gradient(135deg,#2a0018,#000a2a)' },
-  { id:'dmatcha', label:'Dark Matcha', bg:'linear-gradient(135deg,#001a00,#1a1200)' },
+  { id:'purple',  label:'Purple Night', bg:'linear-gradient(135deg,#1a1a3e,#3a1a6e)' },
+  { id:'rose',    label:'Rose Dark',    bg:'linear-gradient(135deg,#2d0a1a,#5a1a3a)' },
+  { id:'forest',  label:'Forest',       bg:'linear-gradient(135deg,#0a1a0a,#1a3a1a)' },
+  { id:'black',   label:'Black',        bg:'linear-gradient(135deg,#000,#111)' },
+  { id:'ocean',   label:'Ocean',        bg:'linear-gradient(135deg,#0a1a2a,#0a2a4a)' },
+  { id:'sunset',  label:'Sunset',       bg:'linear-gradient(135deg,#1a0a0a,#3a1a0a)' },
+  { id:'pastel',  label:'Pastel',       bg:'linear-gradient(135deg,#f7c5e0,#c5d8f7)' },
+  { id:'kawaii',  label:'Kawaii',       bg:'linear-gradient(135deg,#ffb3d9,#b3d9ff)' },
+  { id:'matcha',  label:'Matcha',       bg:'linear-gradient(135deg,#c8e6c2,#f7e8c8)' },
+  { id:'dpastel', label:'Dark Pastel',  bg:'linear-gradient(135deg,#1a0a1a,#0a0a2a)' },
+  { id:'dkawaii', label:'Dark Kawaii',  bg:'linear-gradient(135deg,#2a0018,#000a2a)' },
+  { id:'dmatcha', label:'Dark Matcha',  bg:'linear-gradient(135deg,#001a00,#1a1200)' },
 ];
 
 window.openThemePanel = function() {
   const panel = document.getElementById("theme-panel");
   panel.style.display = "flex";
   const grid = document.getElementById("theme-grid");
-  if (grid.dataset.built) return;
   grid.innerHTML = "";
   const current = localStorage.getItem('anon-theme') || 'purple';
   THEME_LIST.forEach(t => {
@@ -2286,7 +2286,7 @@ window.openThemePanel = function() {
     });
     grid.appendChild(el);
   });
-  grid.dataset.built = "1";
+
 }
 
 window.closeThemePanel = function() {
@@ -3496,7 +3496,7 @@ window.openSettingsPanel = function() {
       el.addEventListener("touchend", (e) => { e.stopPropagation(); el.style.transform = "scale(1)"; setMood(m); });
       grid.appendChild(el);
     });
-    grid.dataset.built = "1";
+  
   }
 
   // Populate current values
@@ -3690,8 +3690,9 @@ function updatePresence() {
   const isOnline = diff < 15000; // 15s — ping প্রতি 10s, তাই accurate
   let status, dotColor, bgColor, borderColor;
   if (isOnline) {
-    const devLabel = p.device === "L" ? " · L" : p.device === "M" ? " · M" : "";
-    status = "Online" + devLabel;
+    const devBadge = p.device ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:4px;">${p.device}</span>` : '';
+    status = "Online" + (p.device ? ' ' + p.device : '');
+    devLabelHtml = devBadge;
     dotColor = "#22ee66";
     bgColor = "rgba(20,60,30,0.6)";
     borderColor = "#1a5a30";
@@ -3722,7 +3723,17 @@ function updatePresence() {
   const pillDot  = document.getElementById("header-presence-dot");
   if (pillText) {
     if (isOnline) {
-      pillText.textContent = "Online" + (p.device === "L" ? " · L" : p.device === "M" ? " · M" : "");
+      pillText.textContent = "Online";
+      // M/L badge in pill
+      const existBadge = document.getElementById('dev-pill-badge');
+      if (existBadge) existBadge.remove();
+      if (p.device) {
+        const badge = document.createElement('span');
+        badge.id = 'dev-pill-badge';
+        badge.textContent = p.device;
+        badge.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(100,80,200,0.5);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:3px;';
+        pillText.parentElement.appendChild(badge);
+      }
       if (pillDot) { pillDot.className = "stats-live-dot online"; pillDot.style.background=''; pillDot.style.boxShadow=''; }
     } else if (diff < 43200000) {
       const totalSec = Math.floor(diff / 1000);
@@ -4009,7 +4020,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
 
     let replyHtml = "";
     if (msg.replyTo) {
-      const orig = allMessages.find(m => String(m.ts) === String(msg.replyTo));
+      const orig = allMessages.find(m => String(m.ts) === String(msg.replyTo) || m.key === msg.replyTo || m.id === msg.replyTo);
       if (orig) {
         let replyContent;
         if (orig.unsent) {
@@ -6143,28 +6154,14 @@ body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', 
              '--bot-bg':'linear-gradient(135deg,#3a1a2a,#5a2a4e)','--bot-border':'#7a3a5e','--bot-color':'#f0c0d0',
              '--title':'#ffb0c8','--send-bg':'linear-gradient(135deg,#cc4a7e,#ee6aaa)',
              '--input-bg':'rgba(40,15,28,0.8)','--input-border':'#4a1a30','--border':'#3a1a28',
-             '--fx-a1':'#cc4a7e','--fx-a2':'#aa3a6e','--fx-a3':'#ff8aaa' } },
-    sunset: { label:'Sunset', swatch:'linear-gradient(135deg,#1a0a1a,#ff7a3a)',
-      vars:{ '--bg':'#180814','--header-bg':'rgba(24,8,20,0.95)',
-             '--bme-bg':'linear-gradient(135deg,#7a2a1a,#cc5a2a)','--bme-border':'#ee7a3a','--bme-color':'#ffe0c8',
-             '--bot-bg':'linear-gradient(135deg,#3a1a3a,#5a2a5a)','--bot-border':'#7a3a7a','--bot-color':'#f0d0e8',
-             '--title':'#ffc0a0','--send-bg':'linear-gradient(135deg,#ee6a2a,#ff9a4a)',
-             '--input-bg':'rgba(40,18,24,0.8)','--input-border':'#4a1a20','--border':'#3a1a20',
-             '--fx-a1':'#ee6a2a','--fx-a2':'#aa3a8a','--fx-a3':'#ffaa5a' } },
+             '--fx-a1':'#cc4a7e','--fx-a2':'#aa3a6e','--fx-a3':'#ff8aaa' } }, },
     noir: { label:'Noir', swatch:'linear-gradient(135deg,#0a0a0a,#444)',
       vars:{ '--bg':'#070708','--header-bg':'rgba(10,10,12,0.95)',
              '--bme-bg':'linear-gradient(135deg,#1a1a1e,#2a2a30)','--bme-border':'#3a3a44','--bme-color':'#dcdce0',
              '--bot-bg':'linear-gradient(135deg,#141418,#1e1e24)','--bot-border':'#2a2a32','--bot-color':'#b8b8c0',
              '--title':'#e8e8ee','--send-bg':'linear-gradient(135deg,#3a3a44,#5a5a66)',
              '--input-bg':'rgba(18,18,22,0.85)','--input-border':'#2a2a30','--border':'#1e1e24',
-             '--fx-a1':'#444455','--fx-a2':'#222233','--fx-a3':'#666677' } },
-    forest: { label:'Forest', swatch:'linear-gradient(135deg,#0a1a0e,#3a7a4a)',
-      vars:{ '--bg':'#08120c','--header-bg':'rgba(10,20,14,0.95)',
-             '--bme-bg':'linear-gradient(135deg,#1a4a2e,#2a6a3e)','--bme-border':'#3a8a4e','--bme-color':'#d0f0d8',
-             '--bot-bg':'linear-gradient(135deg,#2a3a1e,#3a5a2e)','--bot-border':'#5a7a3e','--bot-color':'#e0e8b8',
-             '--title':'#a8e0a0','--send-bg':'linear-gradient(135deg,#3a8a4e,#5aaa6e)',
-             '--input-bg':'rgba(14,28,18,0.8)','--input-border':'#1e3a24','--border':'#1a3020',
-             '--fx-a1':'#3a8a4e','--fx-a2':'#1a6a4e','--fx-a3':'#88cc5a' } },
+             '--fx-a1':'#444455','--fx-a2':'#222233','--fx-a3':'#666677' } }, },
   };
 
   const BUBBLES = [
