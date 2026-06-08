@@ -1840,6 +1840,10 @@ window.selectRole = function(role) {
   // Tab/browser বন্ধ হলে presence reset করো
   const myPresRef = ref(db, `presence/${myRole}`);
   onDisconnect(myPresRef).update({ typing: 0, online: false }).catch(() => {});
+  // Firebase reconnect হলে সাথে সাথে ping দাও — এটা ছাড়া reconnect এ online দেখায় না
+  onValue(ref(db, '.info/connected'), snap => {
+    if (snap.val() === true && myRole) pingPresence();
+  });
   // Update presence UI every second so "X ago" stays live
   setInterval(() => { if (myRole) updatePresence(); }, 1000);
 
@@ -2043,11 +2047,11 @@ function startListeners() {
       const lastEl = document.querySelector(`.msg-wrapper:last-child`);
       if (lastEl && last.role === myRole) {
         const other = myRole === "A" ? "B" : "A";
-        const seen = presenceData[other] ? String(presenceData[other].seen || "") : "";
+        const seenTs = presenceData[other] ? Number(presenceData[other].seen || 0) : 0;
         const metaEl = lastEl.querySelector('.msg-meta');
         if (metaEl) {
           const time = new Date(Number(last.ts)).toLocaleTimeString("bn-BD", {hour:"2-digit",minute:"2-digit"});
-          const tick = seen && seen >= String(last.ts)
+          const tick = seenTs && seenTs >= Number(last.ts)
             ? `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="seen-label">✓✓ Seen</span>`
             : `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="delivered-label">✓ Delivered</span>`;
           metaEl.innerHTML = tick;
@@ -3652,8 +3656,8 @@ function updateCountdownPreview() {
 function pingPresence() {
   if (!myRole) return;
   const myPresRef = ref(db, `presence/${myRole}`);
-  // serverTimestamp() makes "last" a real server-side ms, eliminating device-clock skew.
-  update(myPresRef, { last: serverTimestamp(), typing: isTyping ? 1 : 0, online: true, device: 'M' }).catch(() => {});
+  // Use serverNow() (client time + server offset) so updatePresence() diff calc stays consistent.
+  update(myPresRef, { last: window.serverNow(), typing: isTyping ? 1 : 0, online: true, device: 'M' }).catch(() => {});
 }
 
 function updatePresence() {
@@ -3782,14 +3786,14 @@ window.addEventListener('focus', () => { updateSeen(); });
 function updateSeen() {
   if (!allMessages.length) return;
   if (document.hidden) return;
-  // শুধু real messages দেখো (system বা _fromLite না)
-  const realMsgs = allMessages.filter(m => !m.system && m.role !== 'system' && !m._fromLite);
+  // শুধু real messages দেখো (system বাদ)
+  const realMsgs = allMessages.filter(m => !m.system && m.role !== 'system');
   if (!realMsgs.length) return;
   const last = realMsgs[realMsgs.length - 1];
   if (last.role !== myRole && Number(last.ts) !== lastSeenTs) {
     lastSeenTs = Number(last.ts);
     const myPresRef = ref(db, `presence/${myRole}`);
-    update(myPresRef, { seen: last.ts }).catch(() => {});
+    update(myPresRef, { seen: Number(last.ts) }).catch(() => {});
   }
 }
 
