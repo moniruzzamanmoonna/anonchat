@@ -1830,6 +1830,8 @@ window.selectRole = function(role) {
   });
 
   startListeners();
+  // presence/null stale data cleanup
+  remove(ref(db, 'presence/null')).catch(() => {});
   presenceInterval = setInterval(pingPresence, presenceIntervalMs);
   pingPresence();
   // Tab/window focus বা visible হলে সাথে সাথে ping দাও
@@ -3693,7 +3695,7 @@ function updatePresence() {
 
   const diff = Math.max(0, window.serverNow() - Number(p.last));
   
-  const isOnline = diff < 15000; // 15s — ping প্রতি 10s, তাই accurate
+  const isOnline = p.online === true && diff < 20000; // online flag + 20s window
   let status, dotColor, bgColor, borderColor;
   if (isOnline) {
     const devBadge = p.device ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:4px;">${p.device}</span>` : '';
