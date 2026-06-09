@@ -1811,6 +1811,7 @@ onValue(notesRef, snap => {
 
 // ── ROLE ────────────────────────────────────────────────
 window.selectRole = function(role) {
+  try {
   myRole = role;
   document.getElementById("role-screen").style.display = "none";
   document.getElementById("chat-screen").style.display = "flex";
@@ -1875,6 +1876,10 @@ window.selectRole = function(role) {
 
   // Start emergency notification system
   setTimeout(() => setupEmergencyNotifications(role), 1500);
+  } catch(err) {
+    alert('Error entering chat: ' + err.message);
+    console.error(err);
+  }
 }
 
 window.goBack = function() {
