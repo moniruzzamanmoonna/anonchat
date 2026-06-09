@@ -263,6 +263,7 @@ const serverNow = () => Date.now() + (window.__serverTimeOffset || 0);
 
 let role=null, nicks={A:"Star",B:"Moon"}, theme="dark";
 let msgs=[], replyTo=null, editMsg=null, ctxMsg=null, bwords=[], ntfyTopics={A:"anonchat_star",B:"anonchat_moon"};
+let cooldownUntil=0;
 let presData={}, emergDismissTs=0;
 let unsubs=[], presTimer, headerTimer, typingTimer;
 let _visHandler, _focusHandler, _pagesHandler;
@@ -320,7 +321,9 @@ function startPresence(){
   // onDisconnect এ last রেখে দাও — তাহলে last seen দেখা যাবে
   onDisconnect(myPresRef).update({online:false, typing:false, last:serverTimestamp()}).catch(()=>{});
   presTimer=setInterval(()=>{ ping(); },10000);
-  headerTimer=setInterval(()=>{ updateHeader(); },1000);
+  headerTimer=setInterval(()=>{ updateHeader(); renderMsgs(); },30000);
+  // immediate 1s tick for header only
+  setInterval(()=>{ updateHeader(); },1000);
   // named handlers — back button এ remove করা যাবে
   _visHandler=()=>{ if(!document.hidden) ping(); };
   _focusHandler=()=>{ ping(); };
@@ -353,13 +356,40 @@ function updateHeader(){
 // ── MESSAGES ──
 function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 
+function seenAgo(ts){
+  const diff=Math.floor((Date.now()-Number(ts))/1000);
+  if(diff<10) return 'just now';
+  if(diff<60) return diff+'s ago';
+  const m=Math.floor(diff/60);
+  if(m<60) return m+' min ago';
+  const h=Math.floor(m/60);
+  if(h<24) return h+' hr ago';
+  return Math.floor(h/24)+'d ago';
+}
+
 function renderMsgs(){
   const el=$('msgs'), atBot=el.scrollHeight-el.scrollTop-el.clientHeight<80;
+  // অন্যজনের seen timestamp — presence/other/seen
+  const otherSeen = presData[role==='A'?'B':'A']?.seen || 0;
+  // আমার কোন message টা last seen হয়েছে সেটা বের করো
+  const myMsgs = msgs.filter(m=>m.role===role && m.ts);
+  const lastSeenMsg = [...myMsgs].reverse().find(m=>Number(m.ts)<=Number(otherSeen));
+
   el.innerHTML=msgs.map(m=>{
     if(m.system) return `<div class="sysmsg">${esc(m.text||'')}</div>`;
     const me=m.role===role, cls=me?'me':'them';
     const time=m.ts?new Date(m.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
-    const status=me?(m.seen?'<span style="color:#80ccff">Seen</span>':m.delivered?'<span style="color:var(--sub)">Delivered</span>':''):'';
+    let status='';
+    if(me){
+      if(m.seen || (lastSeenMsg && m.id===lastSeenMsg.id)){
+        const seenTime = otherSeen && m.id===lastSeenMsg?.id
+          ? `<span style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(otherSeen)}</span>`
+          : '';
+        status=`<span style="color:#80ccff">Seen${m.id===lastSeenMsg?.id?'':''}</span>${seenTime}`;
+      } else if(m.delivered){
+        status='<span style="color:var(--sub)">Delivered</span>';
+      }
+    }
     const orig=m.replyTo?msgs.find(x=>x.id===m.replyTo||String(x.ts)===String(m.replyTo)):null;
     const rep=orig?`<div class="rpreview" data-replyid="${orig.id}" style="cursor:pointer">↩ ${esc(orig.text||'📷')}</div>`:'';
     const edited=m.edited?'<span style="font-size:9px;color:var(--sub);margin-left:4px;opacity:.7">(edited)</span>':'';
@@ -379,7 +409,14 @@ function renderMsgs(){
       const aurl=m.text.slice(7);
       body=`<audio controls src="${aurl}" style="max-width:200px;"></audio>`;
     } else {
-      body=`<span>${esc(m.text||'')}${edited}</span>`;
+      let display=esc(m.text||'');
+      if(m.bannedWords&&m.bannedWords.length){
+        m.bannedWords.forEach(w=>{
+          const re=new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+          display=display.replace(re,`<mark style="background:#ff4444;color:#fff;border-radius:3px;padding:0 2px;">$&</mark>`);
+        });
+      }
+      body=`<span>${display}${edited}</span>`;
     }
     let reacts='';
     if(m.reactions){
@@ -464,16 +501,38 @@ $('send-btn').onclick=doSend;
 
 async function doSend(){
   const txt=$('msg-input').value.trim(); if(!txt) return;
-  if(bwords.some(w=>txt.toLowerCase().includes(w))){toast('🚫 Banned word!');return;}
+  if(Date.now()<cooldownUntil){
+    const sec=Math.ceil((cooldownUntil-Date.now())/1000);
+    toast(`⏳ ${sec}s restricted`); return;
+  }
+  const hitWords=bwords.filter(w=>txt.toLowerCase().includes(w.toLowerCase()));
+  const hasBanned=hitWords.length>0;
   if(editMsg){
-    // Edit mode
-    await update(ref(db,`messages/${editMsg.id}`),{text:txt,edited:true});
-    clearEdit(); return;
+    await update(ref(db,`messages/${editMsg.id}`),{text:txt,edited:true,...(hasBanned?{bannedWords:hitWords}:{})});
+    clearEdit();
+    if(hasBanned) startCooldown();
+    return;
   }
   const m={role,text:txt,ts:Date.now(),delivered:true};
+  if(hasBanned) m.bannedWords=hitWords;
   if(replyTo) m.replyTo=String(replyTo.ts||replyTo.id);
-  clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto'; $('send-btn').disabled=true;
+  clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto';
   await push(msgsRef,m);
+  if(hasBanned){
+    await push(msgsRef,{role:'system',text:`⚠️ ${nicks[role]||role} restricted word ব্যবহার করেছে — 5s নিষিদ্ধ!`,ts:Date.now(),system:true}).catch(()=>{});
+    startCooldown(); return;
+  }
+  $('send-btn').disabled=false;
+}
+
+function startCooldown(){
+  cooldownUntil=Date.now()+5000;
+  $('send-btn').disabled=true;
+  const t=setInterval(()=>{
+    const rem=Math.ceil((cooldownUntil-Date.now())/1000);
+    if(rem<=0){clearInterval(t);$('send-btn').disabled=false;$('send-btn').textContent='▶';}
+    else $('send-btn').textContent=rem+'s';
+  },200);
 }
 
 $('photo-btn').onclick=()=>$('photo-input').click();
@@ -592,11 +651,17 @@ function refreshNickInputs(){
 }
 $('save-my-nick').onclick=async()=>{
   const v=$('my-nick').value.trim(); if(!v) return;
-  await update(nickRef,{[role]:v}); $('my-nick').value=''; toast('✅ Saved!');
+  const old=nicks[role];
+  await update(nickRef,{[role]:v});
+  if(old!==v) await push(msgsRef,{role:'system',text:`${old} নাম বদলে ${v} হয়েছে ✏️`,ts:Date.now(),system:true}).catch(()=>{});
+  $('my-nick').value=''; toast('✅ Saved!');
 };
 $('save-other-nick').onclick=async()=>{
   const other=role==='A'?'B':'A'; const v=$('other-nick').value.trim(); if(!v) return;
-  await update(nickRef,{[other]:v}); $('other-nick').value=''; toast('✅ Saved!');
+  const old=nicks[other];
+  await update(nickRef,{[other]:v});
+  if(old!==v) await push(msgsRef,{role:'system',text:`${old} নাম বদলে ${v} হয়েছে ✏️`,ts:Date.now(),system:true}).catch(()=>{});
+  $('other-nick').value=''; toast('✅ Saved!');
 };
 
 // Theme
