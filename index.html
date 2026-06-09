@@ -261,7 +261,9 @@
     box-shadow: 0 0 6px #44dd88;
     animation: onlinePulse 2.5s infinite;
     flex-shrink: 0;
+    display: none;
   }
+  .header-online-dot.visible { display: block; }
   @keyframes shimmer {
     0%   { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
@@ -3677,11 +3679,13 @@ function updatePresence() {
   const pillText = document.getElementById("header-timer-display");
   const pillDot  = document.getElementById("header-presence-dot");
 
+  const onlineDot = document.querySelector('.header-online-dot');
+
   if (!p || !p.last) {
-    // কখনো login করেনি বা data নেই
     presenceEl.innerHTML = "";
     if (pillText) { pillText.textContent = "Offline"; }
     if (pillDot)  { pillDot.style.background = "#444455"; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
+    if (onlineDot) onlineDot.classList.remove('visible');
     typingEl.style.display = "none";
     return;
   }
@@ -3725,14 +3729,15 @@ function updatePresence() {
 
   presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;"><span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span> ${status}</span>`;
 
-  // Update header pill
+  // Update header pill — always reset first
   if (pillText) {
+    // clear old badge
+    const existBadge = document.getElementById('dev-pill-badge');
+    if (existBadge) existBadge.remove();
+
     if (isOnline) {
       pillText.textContent = "Online";
-      // M/L badge in pill
-      const existBadge = document.getElementById('dev-pill-badge');
-      if (existBadge) existBadge.remove();
-      if (p.device) {
+      if (p.device && pillText.parentElement) {
         const badge = document.createElement('span');
         badge.id = 'dev-pill-badge';
         badge.textContent = p.device;
@@ -3740,6 +3745,7 @@ function updatePresence() {
         pillText.parentElement.appendChild(badge);
       }
       if (pillDot) { pillDot.className = "stats-live-dot online"; pillDot.style.background=''; pillDot.style.boxShadow=''; }
+      if (onlineDot) onlineDot.classList.add('visible');
     } else if (diff < 43200000) {
       const totalSec = Math.floor(diff / 1000);
       const h = Math.floor(totalSec / 3600);
@@ -3749,9 +3755,13 @@ function updatePresence() {
       else if (m > 0) pillText.textContent = m + "m " + s + "s ago";
       else pillText.textContent = s + "s ago";
       if (pillDot) { pillDot.style.background = dotColor; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
+      if (onlineDot) onlineDot.classList.remove('visible');
     } else {
       pillText.textContent = "12h+ ago";
       if (pillDot) { pillDot.style.background = "#444455"; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
+      if (onlineDot) onlineDot.classList.remove('visible');
+    }
+  }
     }
   }
 }
