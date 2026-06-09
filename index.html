@@ -1839,11 +1839,7 @@ window.selectRole = function(role) {
 
   // Tab/browser বন্ধ হলে presence reset করো
   const myPresRef = ref(db, `presence/${myRole}`);
-  onDisconnect(myPresRef).update({ typing: 0, online: false }).catch(() => {});
-  // Firebase reconnect হলে সাথে সাথে ping দাও — এটা ছাড়া reconnect এ online দেখায় না
-  onValue(ref(db, '.info/connected'), snap => {
-    if (snap.val() === true && myRole) pingPresence();
-  });
+  onDisconnect(myPresRef).update({ typing: 0, online: false, last: serverTimestamp() }).catch(() => {});
   // Update presence UI every second so "X ago" stays live
   setInterval(() => { if (myRole) updatePresence(); }, 1000);
 
@@ -2039,6 +2035,7 @@ function startListeners() {
   // Presence — typing & online status
   unsubPresence = onValue(presenceRef, snapshot => {
     presenceData = snapshot.val() || {};
+    window.__presenceData = presenceData; // debug
     updatePresence();
     updateGamePresence();
     // Update only last message seen tick directly in DOM
@@ -2047,11 +2044,11 @@ function startListeners() {
       const lastEl = document.querySelector(`.msg-wrapper:last-child`);
       if (lastEl && last.role === myRole) {
         const other = myRole === "A" ? "B" : "A";
-        const seenTs = presenceData[other] ? Number(presenceData[other].seen || 0) : 0;
+        const seen = presenceData[other] ? String(presenceData[other].seen || "") : "";
         const metaEl = lastEl.querySelector('.msg-meta');
         if (metaEl) {
           const time = new Date(Number(last.ts)).toLocaleTimeString("bn-BD", {hour:"2-digit",minute:"2-digit"});
-          const tick = seenTs && seenTs >= Number(last.ts)
+          const tick = seen && seen >= String(last.ts)
             ? `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="seen-label">✓✓ Seen</span>`
             : `<span class="msg-time">${ICONS[last.role]} ${time}</span><span class="delivered-label">✓ Delivered</span>`;
           metaEl.innerHTML = tick;
@@ -3656,8 +3653,8 @@ function updateCountdownPreview() {
 function pingPresence() {
   if (!myRole) return;
   const myPresRef = ref(db, `presence/${myRole}`);
-  // Use serverNow() (client time + server offset) so updatePresence() diff calc stays consistent.
-  update(myPresRef, { last: window.serverNow(), typing: isTyping ? 1 : 0, online: true, device: 'M' }).catch(() => {});
+  // Date.now() use করো — serverNow() এর সাথে consistent, offset issue নেই
+  update(myPresRef, { last: Date.now(), typing: isTyping ? 1 : 0, online: true, device: 'M' }).catch(() => {});
 }
 
 function updatePresence() {
@@ -3675,10 +3672,14 @@ function updatePresence() {
   if (nameHeader) nameHeader.textContent = ICONS[other] + " " + otherName + otherMood;
 
   const presenceEl = document.getElementById("other-presence");
+  const pillText = document.getElementById("header-timer-display");
+  const pillDot  = document.getElementById("header-presence-dot");
 
   if (!p || !p.last) {
-    // কখনো login করেনি — blank দেখাও
+    // কখনো login করেনি বা data নেই
     presenceEl.innerHTML = "";
+    if (pillText) { pillText.textContent = "Offline"; }
+    if (pillDot)  { pillDot.style.background = "#444455"; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
     typingEl.style.display = "none";
     return;
   }
@@ -3724,8 +3725,6 @@ function updatePresence() {
   presenceEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bgColor};border:1px solid ${borderColor};border-radius:20px;padding:3px 12px;font-size:11px;color:#ccc;"><span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;${diff<10000?'box-shadow:0 0 6px '+dotColor:''}"></span> ${status}</span>`;
 
   // Update header pill
-  const pillText = document.getElementById("header-timer-display");
-  const pillDot  = document.getElementById("header-presence-dot");
   if (pillText) {
     if (isOnline) {
       pillText.textContent = "Online";
@@ -3786,14 +3785,14 @@ window.addEventListener('focus', () => { updateSeen(); });
 function updateSeen() {
   if (!allMessages.length) return;
   if (document.hidden) return;
-  // শুধু real messages দেখো (system বাদ)
-  const realMsgs = allMessages.filter(m => !m.system && m.role !== 'system');
+  // শুধু real messages দেখো (system বা _fromLite না)
+  const realMsgs = allMessages.filter(m => !m.system && m.role !== 'system' && !m._fromLite);
   if (!realMsgs.length) return;
   const last = realMsgs[realMsgs.length - 1];
   if (last.role !== myRole && Number(last.ts) !== lastSeenTs) {
     lastSeenTs = Number(last.ts);
     const myPresRef = ref(db, `presence/${myRole}`);
-    update(myPresRef, { seen: Number(last.ts) }).catch(() => {});
+    update(myPresRef, { seen: last.ts }).catch(() => {});
   }
 }
 
@@ -6124,7 +6123,7 @@ body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', 
   <div class="stars"></div>
 </div>
 
-<div id="aesthetics-fab" title="Aesthetics" onclick="toggleAesthetics(event)" ontouchend="toggleAesthetics(event)">✨</div>
+<div id="aesthetics-fab" title="Aesthetics" onclick="toggleAesthetics(event)">✨</div>
 <div id="aesthetics-panel" onclick="event.stopPropagation()">
   <h4>🎨 Theme</h4>
   <div class="aes-row" id="aes-themes"></div>
