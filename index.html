@@ -3694,9 +3694,8 @@ function updatePresence() {
   }
 
   const diff = Math.max(0, window.serverNow() - Number(p.last));
-  console.log('[presence] p.last=', p.last, 'serverNow=', window.serverNow(), 'diff=', diff, 'online=', p.online);
   const isOnline = p.online === true && diff < 20000;
-  let status, dotColor, bgColor, borderColor;
+  let status, dotColor, bgColor, borderColor, devLabelHtml = '';
   if (isOnline) {
     const devBadge = p.device ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:4px;">${p.device}</span>` : '';
     status = "Online" + (p.device ? ' ' + p.device : '');
