@@ -752,8 +752,8 @@ window.onerror = function(msg, src, line, col, err) {
     <div id="chat-milestone"></div>
   </div>
   <div class="role-buttons">
-    <button class="role-btn" onclick="selectRole('A')">★<div class="label">Star</div></button>
-    <button class="role-btn moon" onclick="selectRole('B')">☽<div class="label">Moon</div></button>
+    <button class="role-btn" id="btn-star" onclick="selectRole('A')" disabled>★<div class="label">Star</div></button>
+    <button class="role-btn moon" id="btn-moon" onclick="selectRole('B')" disabled>☽<div class="label">Moon</div></button>
   </div>
   <div class="hint">দুজন আলাদা আলাদা ক্লিক করো।<br>কেউ কাউকে চিনবে না।</div>
 
@@ -1810,6 +1810,16 @@ onValue(notesRef, snap => {
 })();
 
 // ── ROLE ────────────────────────────────────────────────
+// Enable role buttons now that JS is ready
+document.addEventListener('DOMContentLoaded', () => {
+  const s = document.getElementById('btn-star');
+  const m = document.getElementById('btn-moon');
+  if(s) s.disabled = false;
+  if(m) m.disabled = false;
+});
+// Also enable immediately if DOM already loaded
+(function(){ const s=document.getElementById('btn-star'),m=document.getElementById('btn-moon'); if(s)s.disabled=false; if(m)m.disabled=false; })();
+
 window.selectRole = function(role) {
   try {
   myRole = role;
