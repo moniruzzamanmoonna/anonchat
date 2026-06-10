@@ -109,8 +109,8 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 
 <div id="role-screen" class="screen active">
   <div style="font-size:13px;color:var(--sub);letter-spacing:2px;">তুমি কে?</div>
-  <button class="role-btn" id="role-a">★ Star</button>
-  <button class="role-btn" id="role-b">☽ Moon</button>
+  <button class="role-btn" id="role-a">★ <span id="role-a-nick">Star</span></button>
+  <button class="role-btn" id="role-b">☽ <span id="role-b-nick">Moon</span></button>
 </div>
 
 <div id="chat-screen">
@@ -289,6 +289,12 @@ $('pwd').onkeydown=e=>{ if(e.key==='Enter') $('enter-btn').click(); };
 // ── ROLE ──
 $('role-a').onclick=()=>startChat('A');
 $('role-b').onclick=()=>startChat('B');
+
+// Role screen দেখানোর সময় nickname লোড করো
+function loadRoleNicks(){
+  get(nickRef).then(s=>{ const d=s.val()||{}; $('role-a-nick').textContent=d.A||'Star'; $('role-b-nick').textContent=d.B||'Moon'; }).catch(()=>{});
+}
+loadRoleNicks();
 
 function startChat(r){
   role=r;
@@ -785,6 +791,7 @@ $('back-btn').onclick=()=>{
   $('chat-screen').style.display='none';
   $('archive-panel').style.display='none';
   show('role-screen');
+  loadRoleNicks();
 };
 </script>
 </body>
