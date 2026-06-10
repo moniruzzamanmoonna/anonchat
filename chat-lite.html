@@ -94,10 +94,24 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 @keyframes sd{from{transform:translateY(-100%)}to{transform:translateY(0)}}
 .edism{background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(30,30,60,.95);color:var(--ttl);border:1px solid var(--brd);border-radius:12px;padding:8px 18px;font-size:13px;z-index:900;display:none;white-space:nowrap;}
+
+/* ── LOADER ── */
+.loader{width:fit-content;font-size:14px;font-family:monospace;line-height:1.4;font-weight:bold;color:var(--ttl);background:linear-gradient(var(--ttl) 0 0) left,linear-gradient(var(--ttl) 0 0) right;background-repeat:no-repeat;border-right:5px solid #0000;border-left:5px solid #0000;background-origin:border-box;position:relative;animation:l9-0 2s infinite;}
+.loader::before{content:"Loading";}
+.loader::after{content:"";position:absolute;top:100%;left:0;width:22px;height:60px;background:linear-gradient(90deg,var(--ttl) 4px,#0000 0 calc(100% - 4px),var(--ttl) 0) bottom/22px 20px,linear-gradient(90deg,red 4px,#0000 0 calc(100% - 4px),red 0) bottom 10px left 0/22px 6px,linear-gradient(var(--ttl) 0 0) bottom 3px left 0/22px 8px,linear-gradient(var(--ttl) 0 0) bottom 0 left 50%/8px 16px;background-repeat:no-repeat;animation:l9-1 2s infinite;}
+@keyframes l9-0{0%,25%{background-size:50% 100%}25.1%,75%{background-size:0 0,50% 100%}75.1%,100%{background-size:0 0,0 0}}
+@keyframes l9-1{25%{background-position:bottom,bottom 54px left 0,bottom 3px left 0,bottom 0 left 50%;left:0}25.1%{background-position:bottom,bottom 10px left 0,bottom 3px left 0,bottom 0 left 50%;left:0}50%{background-position:bottom,bottom 10px left 0,bottom 3px left 0,bottom 0 left 50%;left:calc(100% - 22px)}75%{background-position:bottom,bottom 54px left 0,bottom 3px left 0,bottom 0 left 50%;left:calc(100% - 22px)}75.1%{background-position:bottom,bottom 10px left 0,bottom 3px left 0,bottom 0 left 50%;left:calc(100% - 22px)}}
+/* loader wrapper — centered overlay inside a container */
+.loader-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 0 20px;}
+/* full-screen loader overlay */
+#global-loader{position:fixed;inset:0;z-index:950;background:var(--bg);display:flex;align-items:center;justify-content:center;padding-bottom:80px;}
+#global-loader.hidden{display:none;}
 </style>
 </head>
 <body>
 
+<!-- Global loader overlay -->
+<div id="global-loader"><div class="loader"></div></div>
 
 <div id="lock-screen" class="screen" style="display:none;">
   <div class="logo">ANON CHAT</div>
@@ -109,8 +123,11 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 
 <div id="role-screen" class="screen active">
   <div style="font-size:13px;color:var(--sub);letter-spacing:2px;">তুমি কে?</div>
-  <button class="role-btn" id="role-a">★ <span id="role-a-nick">Star</span></button>
-  <button class="role-btn" id="role-b">☽ <span id="role-b-nick">Moon</span></button>
+  <div id="role-loader" class="loader-wrap"><div class="loader"></div></div>
+  <div id="role-btns" style="display:none;width:100%;max-width:280px;display:flex;flex-direction:column;gap:16px;align-items:center;">
+    <button class="role-btn" id="role-a">★ <span id="role-a-nick">Star</span></button>
+    <button class="role-btn" id="role-b">☽ <span id="role-b-nick">Moon</span></button>
+  </div>
 </div>
 
 <div id="chat-screen">
@@ -125,7 +142,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
     <button class="hdr-back" id="archive-btn" title="Archive">🗂️</button>
     <button class="hdr-menu" id="menu-btn">⋮</button>
   </div>
-  <div id="msgs"></div>
+  <div id="msgs"><div class="loader-wrap"><div class="loader"></div></div></div>
   <div id="typing"></div>
   <div id="edit-bar" style="display:none;flex-direction:row;align-items:center;gap:8px;background:rgba(80,80,255,.12);border-top:1px solid #3344aa;padding:8px 14px;font-size:12px;color:#99aaff;"><span>✏️ Editing...</span><button class="rclose" id="edit-close" style="margin-left:auto;">✕</button></div>
   <div id="reply-bar"><span id="reply-text"></span><button class="rclose" id="reply-close">✕</button></div>
@@ -292,7 +309,17 @@ $('role-b').onclick=()=>startChat('B');
 
 // Role screen দেখানোর সময় nickname লোড করো
 function loadRoleNicks(){
-  get(nickRef).then(s=>{ const d=s.val()||{}; $('role-a-nick').textContent=d.A||'Star'; $('role-b-nick').textContent=d.B||'Moon'; }).catch(()=>{});
+  $('role-loader').style.display='flex';
+  $('role-btns').style.display='none';
+  get(nickRef).then(s=>{
+    const d=s.val()||{};
+    $('role-a-nick').textContent=d.A||'Star';
+    $('role-b-nick').textContent=d.B||'Moon';
+  }).catch(()=>{}).finally(()=>{
+    $('role-loader').style.display='none';
+    $('role-btns').style.display='flex';
+    $('global-loader').classList.add('hidden');
+  });
 }
 loadRoleNicks();
 
@@ -571,7 +598,7 @@ $('preview-send').onclick=async()=>{
   if(!_pendingPhotoFile) return;
   const caption=$('preview-caption').value.trim();
   $('photo-preview-modal').style.display='none';
-  toast('📤 Uploading...');
+  $('global-loader').classList.remove('hidden');
   const fd=new FormData(); fd.append('file',_pendingPhotoFile); fd.append('upload_preset',PRESET);
   try{
     const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,{method:'POST',body:fd});
@@ -581,6 +608,7 @@ $('preview-send').onclick=async()=>{
     clearReply();
     toast('✅ Photo sent!');
   }catch(e){toast('❌ Upload failed');}
+  $('global-loader').classList.add('hidden');
   _pendingPhotoFile=null;
 };
 
