@@ -2094,6 +2094,8 @@ function startListeners() {
   // Restrict listener
   unsubRestrict = onValue(restrictRef, snap => {
     restrictData = snap.val() || null;
+    window.__restrictData = restrictData;
+    if (window.__updateBlockBtn) window.__updateBlockBtn();
     applyRestrictUI();
   });
 
@@ -3775,8 +3777,6 @@ function updatePresence() {
       pillText.textContent = "12h+ ago";
       if (pillDot) { pillDot.style.background = "#444455"; pillDot.style.boxShadow = "none"; pillDot.className = "stats-live-dot"; }
       if (onlineDot) onlineDot.classList.remove('visible');
-    }
-  }
     }
   }
 }
@@ -6463,27 +6463,48 @@ body.night-mode #night-badge { opacity: 1; transform: translateY(0); }
     }
   };
 
-  // ── 3) BLOCK FOR 1 HOUR ──
+
+  // ── 3) BLOCK / UNBLOCK ──
   window.blockOtherFor1h = async function(){
     try {
       if (!window.myRole) { alert('Wait — connecting…'); return; }
       const other = window.myRole === 'A' ? 'B' : 'A';
       const myName = (window.nicknames && window.nicknames[window.myRole]) || (window.myRole==='A'?'Star':'Moon');
-      if (!confirm('Block the other for 1 hour?')) return;
-      const until = (window.serverNow ? window.serverNow() : Date.now()) + 60*60*1000;
-      const mod = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
-      // Reuse existing restrictRef via window if available, else build a path
-      if (window.__restrictRef && window.__setRestrict) {
-        await window.__setRestrict({ target: other, until, by: window.myRole });
+      const otherName = (window.nicknames && window.nicknames[other]) || (other==='A'?'Star':'Moon');
+      const rd = window.__restrictData;
+      const isBlocked = rd && rd.target === other && rd.until > Date.now();
+
+      if (isBlocked) {
+        // UNBLOCK
+        if (!confirm(`${otherName} এর block তুলে নেবে?`)) return;
+        if (window.__setRestrict) await window.__setRestrict(null);
+        if (typeof window.sendSystemMsg === 'function')
+          window.sendSystemMsg(`✅ ${myName} block তুলে নিয়েছে`);
       } else {
-        // Fallback: write through a global helper if exposed; else use sendSystemMsg
+        // BLOCK
+        if (!confirm(`${otherName} কে block করবে?`)) return;
+        const until = (window.serverNow ? window.serverNow() : Date.now()) + 60*60*1000;
+        if (window.__setRestrict) await window.__setRestrict({ target: other, until, by: window.myRole });
+        if (typeof window.sendSystemMsg === 'function')
+          window.sendSystemMsg(`🚫 ${myName} ${otherName} কে 1 ঘণ্টার জন্য block করেছে`);
       }
-      if (typeof window.sendSystemMsg === 'function') {
-        window.sendSystemMsg(`🚫 ${myName} blocked the other side for 1 hour`);
-      }
+      updateBlockBtn();
       document.getElementById('aesthetics-panel').classList.remove('open');
-    } catch(e){ alert('Could not block: '+(e.message||e)); }
+    } catch(e){ alert('Error: '+(e.message||e)); }
   };
+
+  // block button label update
+  function updateBlockBtn(){
+    const btn = document.getElementById('aes-block-btn');
+    if (!btn) return;
+    const other = window.myRole === 'A' ? 'B' : 'A';
+    const rd = window.__restrictData;
+    const isBlocked = rd && rd.target === other && rd.until > Date.now();
+    btn.textContent = isBlocked ? '🔓 Unblock other' : '🚫 Block other (1h)';
+    btn.style.background = isBlocked ? 'rgba(40,160,80,0.2)' : '';
+  }
+  window.__updateBlockBtn = updateBlockBtn;
+  setInterval(updateBlockBtn, 2000);
 
   // ── 4) Inject tools into the existing aesthetics panel ──
   function addTools(){
@@ -6493,7 +6514,7 @@ body.night-mode #night-badge { opacity: 1; transform: translateY(0); }
     const wrap = document.createElement('div'); wrap.id = 'aes-tools';
     wrap.innerHTML = `
       <button class="aes-tool-btn" onclick="showFunnyStats()">📊 Funny analytics</button>
-      <button class="aes-tool-btn" onclick="blockOtherFor1h()">🚫 Block other (1 hour)</button>
+      <button class="aes-tool-btn" id="aes-block-btn" onclick="blockOtherFor1h()">🚫 Block other (1h)</button>
     `;
     panel.appendChild(h);
     panel.appendChild(wrap);
