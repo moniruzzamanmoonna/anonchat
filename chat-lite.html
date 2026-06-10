@@ -422,6 +422,7 @@ function renderMsgs(){
           display=display.replace(re,`<mark style="background:#ff4444;color:#fff;border-radius:3px;padding:0 2px;">$&</mark>`);
         });
       }
+      display=display.replace(/(https?:\/\/[^\s<>"]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer" style="color:var(--ttl);text-decoration:underline;word-break:break-all;" onclick="event.stopPropagation()">$1</a>');
       body=`<span>${display}${edited}</span>`;
     }
     let reacts='';
