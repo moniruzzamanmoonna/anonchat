@@ -106,6 +106,12 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 /* full-screen loader overlay */
 #global-loader{position:fixed;inset:0;z-index:950;background:var(--bg);display:flex;align-items:center;justify-content:center;padding-bottom:80px;}
 #global-loader.hidden{display:none;}
+/* ── UPLOAD TRAIN BAR ── */
+#upload-bar{position:fixed;bottom:0;left:0;right:0;max-width:600px;margin:0 auto;z-index:800;background:var(--hdr);border-top:2px solid var(--brd);padding:6px 14px;display:none;align-items:center;gap:10px;font-size:12px;color:var(--sub);}
+#upload-bar.show{display:flex;}
+#upload-track{flex:1;height:6px;background:var(--brd);border-radius:3px;overflow:hidden;position:relative;}
+#upload-train{position:absolute;top:0;left:-40%;width:40%;height:100%;background:linear-gradient(90deg,transparent,var(--ttl),transparent);border-radius:3px;animation:train-run 1.2s linear infinite;}
+@keyframes train-run{0%{left:-40%}100%{left:100%}}
 </style>
 </head>
 <body>
@@ -240,6 +246,10 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 </div>
 
 <div id="toast"></div>
+<div id="upload-bar">
+  <span>📤 Uploading...</span>
+  <div id="upload-track"><div id="upload-train"></div></div>
+</div>
 
 <!-- PHOTO PREVIEW -->
 <div id="photo-preview-modal" style="display:none;position:fixed;inset:0;z-index:750;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center;backdrop-filter:blur(6px);">
@@ -598,7 +608,7 @@ $('preview-send').onclick=async()=>{
   if(!_pendingPhotoFile) return;
   const caption=$('preview-caption').value.trim();
   $('photo-preview-modal').style.display='none';
-  $('global-loader').classList.remove('hidden');
+  $('upload-bar').classList.add('show');
   const fd=new FormData(); fd.append('file',_pendingPhotoFile); fd.append('upload_preset',PRESET);
   try{
     const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,{method:'POST',body:fd});
@@ -608,7 +618,7 @@ $('preview-send').onclick=async()=>{
     clearReply();
     toast('✅ Photo sent!');
   }catch(e){toast('❌ Upload failed');}
-  $('global-loader').classList.add('hidden');
+  $('upload-bar').classList.remove('show');
   _pendingPhotoFile=null;
 };
 
