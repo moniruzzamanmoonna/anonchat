@@ -386,8 +386,10 @@ function updateHeader(){
   if(p.typing&&Date.now()-p.last<5000){typ.style.display='block';typ.textContent=(nicks[other]||'অপর জন')+' লিখছে...';}
   else typ.style.display='none';
   const diff=Date.now()-Number(p.last);
+  // online:true থাকলে AND last ping 20s এর মধ্যে হলেই Online
+  const isOnline = p.online===true && diff<10000;
   let txt,dot;
-  if(diff<15000){const devBadge=p.device?`<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:3px;">${p.device}</span>`:'';txt='Online'+devBadge;dot='#22ee66';}
+  if(isOnline){const devBadge=p.device?`<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:3px;">${p.device}</span>`:'';txt='Online'+devBadge;dot='#22ee66';}
   else{
     const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
     txt=h>0?`Last Active ${h}h ${m}m ago`:m>0?`Last Active ${m}m ${sec}s ago`:`Last Active ${sec}s ago`;
@@ -428,9 +430,14 @@ function renderMsgs(){
     const time=m.ts?new Date(m.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
     let status='';
     if(me){
-      if(lastSeenMsg && m.id===lastSeenMsg.id){
-        const seenTime = `<span style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(otherSeen)}</span>`;
-        status=`<span style="color:#80ccff">Seen</span>${seenTime}`;
+      const isLastSeen = lastSeenMsg && m.id===lastSeenMsg.id;
+      const isSeen = m.seen===true;
+      if(isLastSeen || isSeen){
+        // lastSeenMsg হলে otherSeen time দেখাও, নইলে seenAt দেখাও
+        const seenTs = isLastSeen ? otherSeen : (m.seenAt||0);
+        const seenTime = seenTs ? `<span style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(seenTs)}</span>` : '';
+        // শুধু last seen message এ time দেখাব
+        status=`<span style="color:#80ccff">Seen</span>${isLastSeen||!lastSeenMsg?seenTime:''}`;
       } else if(m.delivered){
         status='<span style="color:var(--sub)">Delivered</span>';
       }
@@ -528,9 +535,14 @@ function renderMsgs(){
 }
 
 function markSeen(){
+  // শুধু তখনই seen mark করব যখন page visible
+  if(document.hidden) return;
   const other=role==='A'?'B':'A';
-  msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>update(ref(db,`messages/${m.id}`),{seen:true}));
-  // Main এর মতো presence.seen update করো
+  const now=Date.now();
+  msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>{
+    update(ref(db,`messages/${m.id}`),{seen:true,seenAt:now});
+  });
+  // presence.seen update — অপরজনের শেষ message এর ts দিয়ে
   const realMsgs=msgs.filter(m=>!m.system&&m.role!==role);
   if(!realMsgs.length) return;
   const last=realMsgs[realMsgs.length-1];
