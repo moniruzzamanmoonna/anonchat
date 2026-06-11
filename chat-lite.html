@@ -413,10 +413,14 @@ function seenAgo(ts){
 function renderMsgs(){
   const el=$('msgs'), atBot=el.scrollHeight-el.scrollTop-el.clientHeight<80;
   // অন্যজনের seen timestamp — presence/other/seen
-  const otherSeen = presData[role==='A'?'B':'A']?.seen || 0;
+  const otherSeen = Number(presData[role==='A'?'B':'A']?.seen || 0);
   // আমার কোন message টা last seen হয়েছে সেটা বের করো
+  // শুধুমাত্র সেই message দেখাবে Seen যার ts <= otherSeen
+  // এবং otherSeen অবশ্যই message পাঠানোর পরে update হয়েছে
   const myMsgs = msgs.filter(m=>m.role===role && m.ts);
-  const lastSeenMsg = [...myMsgs].reverse().find(m=>Number(m.ts)<=Number(otherSeen));
+  const lastSeenMsg = otherSeen > 0
+    ? [...myMsgs].reverse().find(m=>Number(m.ts)<=otherSeen)
+    : null;
 
   el.innerHTML=msgs.map(m=>{
     if(m.system) return `<div class="sysmsg">${esc(m.text||'')}</div>`;
@@ -424,11 +428,9 @@ function renderMsgs(){
     const time=m.ts?new Date(m.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
     let status='';
     if(me){
-      if(m.seen || (lastSeenMsg && m.id===lastSeenMsg.id)){
-        const seenTime = otherSeen && m.id===lastSeenMsg?.id
-          ? `<span style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(otherSeen)}</span>`
-          : '';
-        status=`<span style="color:#80ccff">Seen${m.id===lastSeenMsg?.id?'':''}</span>${seenTime}`;
+      if(lastSeenMsg && m.id===lastSeenMsg.id){
+        const seenTime = `<span style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(otherSeen)}</span>`;
+        status=`<span style="color:#80ccff">Seen</span>${seenTime}`;
       } else if(m.delivered){
         status='<span style="color:var(--sub)">Delivered</span>';
       }
