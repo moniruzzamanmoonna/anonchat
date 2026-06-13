@@ -355,18 +355,19 @@ function init(){
 }
 
 // ── PRESENCE ──
+let ping = ()=>{}; // global — doSend থেকেও call করা যাবে
 function startPresence(){
   const myPresRef=ref(db,`presence/${role}`);
-  function ping(typing=false){
+  ping = function(typing=false){
     update(myPresRef,{last:serverNow(),online:true,typing:typing,device:'L'}).catch(()=>{});
-  }
+  };
   ping();
   // onDisconnect এ last রেখে দাও — তাহলে last seen দেখা যাবে
   onDisconnect(myPresRef).update({online:false, typing:false, last:serverTimestamp()}).catch(()=>{});
-  presTimer=setInterval(()=>{ ping(); },10000);
+  presTimer=setInterval(()=>{ ping(); },5000);
   headerTimer=setInterval(()=>{ updateHeader(); renderMsgs(); },30000);
   // immediate 1s tick for header only
-  setInterval(()=>{ updateHeader(); },1000);
+  setInterval(()=>{ updateHeader(); renderSeenTime(); },1000);
   // named handlers — back button এ remove করা যাবে
   _visHandler=()=>{ if(!document.hidden) ping(); };
   _focusHandler=()=>{ ping(); };
@@ -382,18 +383,24 @@ function updateHeader(){
   const other=role==='A'?'B':'A';
   $('hdr-name').textContent=ICONS[other]+' '+(nicks[other]||'...');
   const p=presData[other]; const el=$('hdr-pres'); const typ=$('typing');
-  if(!p||!p.last){el.innerHTML='<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:#444455;display:inline-block;"></span>Offline</span>';typ.style.display='none';return;}
+  if(!p||!p.last){el.innerHTML='<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;"></span>Last Active: অজানা</span>';typ.style.display='none';return;}
   if(p.typing&&Date.now()-p.last<5000){typ.style.display='block';typ.textContent=(nicks[other]||'অপর জন')+' লিখছে...';}
   else typ.style.display='none';
   const diff=Date.now()-Number(p.last);
   // online:true থাকলে AND last ping 20s এর মধ্যে হলেই Online
-  const isOnline = p.online===true && diff<10000;
+  const isOnline = p.online===true && diff<25000;
   let txt,dot;
   if(isOnline){const devBadge=p.device?`<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:3px;">${p.device}</span>`:'';txt='Online'+devBadge;dot='#22ee66';}
   else{
     const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
-    txt=h>0?`Last Active ${h}h ${m}m ago`:m>0?`Last Active ${m}m ${sec}s ago`:`Last Active ${sec}s ago`;
-    dot=diff<60000?'#ffaa22':diff<3600000?'#ff6644':'#555';
+    let la;
+    if(s<15)       la=`${s}s ago`;
+    else if(s<60)  la=`${s}s ago`;
+    else if(h<1)   la=`${m}m ${sec}s ago`;
+    else if(h<12)  la=`${h}h ${m}m ago`;
+    else            la=h<24?`${h}h ago`:`${Math.floor(h/24)}d ago`;
+    txt=`Last Active ${la}`;
+    dot=diff<60000?'#ffaa22':diff<3600000?'#ff6644':'#888';
   }
   el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:${dot};${diff<10000?'box-shadow:0 0 5px '+dot+';':''}display:inline-block;"></span>${txt}</span>`;
 }
@@ -412,13 +419,20 @@ function seenAgo(ts){
   return Math.floor(h/24)+'d ago';
 }
 
+// শুধু seen time span টা live update করো — পুরো re-render না করে
+function renderSeenTime(){
+  const el=document.querySelector('#msgs .seen-time');
+  if(!el) return;
+  const ts=Number(el.dataset.ts||0);
+  if(!ts) return;
+  el.textContent=seenAgo(ts);
+}
+
 function renderMsgs(){
   const el=$('msgs'), atBot=el.scrollHeight-el.scrollTop-el.clientHeight<80;
-  // অন্যজনের seen timestamp — presence/other/seen
-  const otherSeen = Number(presData[role==='A'?'B':'A']?.seen || 0);
-  // আমার কোন message টা last seen হয়েছে সেটা বের করো
-  // শুধুমাত্র সেই message দেখাবে Seen যার ts <= otherSeen
-  // এবং otherSeen অবশ্যই message পাঠানোর পরে update হয়েছে
+  const otherPresence = presData[role==='A'?'B':'A'] || {};
+  const otherSeen = Number(otherPresence.seen || 0);       // last msg ts — lastSeenMsg বের করতে
+  const otherSeenAt = Number(otherPresence.seenAt || 0);   // actual seen time — display করতে
   const myMsgs = msgs.filter(m=>m.role===role && m.ts);
   const lastSeenMsg = otherSeen > 0
     ? [...myMsgs].reverse().find(m=>Number(m.ts)<=otherSeen)
@@ -434,8 +448,8 @@ function renderMsgs(){
       const isSeen = m.seen===true;
       if(isLastSeen || isSeen){
         // lastSeenMsg হলে otherSeen time দেখাও, নইলে seenAt দেখাও
-        const seenTs = isLastSeen ? otherSeen : (m.seenAt||0);
-        const seenTime = seenTs ? `<span style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(seenTs)}</span>` : '';
+        const seenTs = isLastSeen ? (otherSeenAt||otherSeen) : (m.seenAt||0);
+        const seenTime = seenTs ? `<span class="seen-time" data-ts="${seenTs}" style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(seenTs)}</span>` : '';
         // শুধু last seen message এ time দেখাব
         status=`<span style="color:#80ccff">Seen</span>${isLastSeen||!lastSeenMsg?seenTime:''}`;
       } else if(m.delivered){
@@ -542,11 +556,11 @@ function markSeen(){
   msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>{
     update(ref(db,`messages/${m.id}`),{seen:true,seenAt:now});
   });
-  // presence.seen update — অপরজনের শেষ message এর ts দিয়ে
+  // presence.seen = last msg ts (lastSeenMsg বের করতে), seenAt = actual seen time
   const realMsgs=msgs.filter(m=>!m.system&&m.role!==role);
   if(!realMsgs.length) return;
   const last=realMsgs[realMsgs.length-1];
-  if(last&&last.ts) update(ref(db,`presence/${role}`),{seen:last.ts}).catch(()=>{});
+  if(last&&last.ts) update(ref(db,`presence/${role}`),{seen:last.ts, seenAt:now}).catch(()=>{});
 }
 
 // ── SEND ──
@@ -575,6 +589,7 @@ async function doSend(){
   if(hasBanned) m.bannedWords=hitWords;
   if(replyTo) m.replyTo=String(replyTo.ts||replyTo.id);
   clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto';
+  ping(); // message পাঠানোর সাথে সাথে presence update
   await push(msgsRef,m);
   if(hasBanned){
     await push(msgsRef,{role:'system',text:`⚠️ ${nicks[role]||role} restricted word ব্যবহার করেছে — 5s নিষিদ্ধ!`,ts:Date.now(),system:true}).catch(()=>{});
