@@ -124,7 +124,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
   <div class="version">⚡ LITE &nbsp;·&nbsp; v 1.3.9</div>
   <input class="code" type="password" id="pwd" placeholder="Secret code...">
   <button class="btn" id="enter-btn">Enter</button>
-  <a href="https://moniruzzamanmoonna.github.io/anonchat/?from=lite" style="font-size:12px;color:var(--sub);text-decoration:none;margin-top:8px;letter-spacing:1px;">↗ Full Version</a>
+  <a href="https://moniruzzamanmoonna.github.io/anonchat/" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--sub);text-decoration:none;margin-top:8px;letter-spacing:1px;">↗ Full Version</a>
 </div>
 
 <div id="role-screen" class="screen active">
@@ -139,7 +139,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 <div id="chat-screen">
   <div class="hdr">
     <button class="hdr-back" id="back-btn">←</button>
-    <button onclick="window.location.href='https://moniruzzamanmoonna.github.io/anonchat/?from=lite'" title="Main Chat" style="background:rgba(80,60,180,0.3);border:1px solid #3a3a7e;color:#c0b0ff;border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">⚡→🌟</button>
+    <button onclick="window.open('https://moniruzzamanmoonna.github.io/anonchat/','_blank')" title="Main Chat" style="background:rgba(80,60,180,0.3);border:1px solid #3a3a7e;color:#c0b0ff;border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">⚡→🌟</button>
     <div class="hdr-info">
       <div class="hdr-name" id="hdr-name">—</div>
       <div class="hdr-pres" id="hdr-pres"></div>
@@ -184,7 +184,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
     <div style="font-size:18px;color:var(--ttl);font-weight:500;">Settings</div>
   </div>
   <div class="ssec" style="border-bottom:1px solid var(--brd);padding-bottom:12px;">
-    <button onclick="window.location.href='https://moniruzzamanmoonna.github.io/anonchat/?from=lite'" style="width:100%;background:linear-gradient(135deg,#2a1a5e,#1a2a5e);border:1px solid #3a3a7e;color:#c0b0ff;padding:13px;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
+    <button onclick="window.open('https://moniruzzamanmoonna.github.io/anonchat/','_blank')" style="width:100%;background:linear-gradient(135deg,#2a1a5e,#1a2a5e);border:1px solid #3a3a7e;color:#c0b0ff;padding:13px;border-radius:12px;font-size:14px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
       🌟 Main Chat-এ যাও
     </button>
     <div style="font-size:11px;color:var(--sub);text-align:center;margin-top:6px;">Full features সহ</div>
@@ -383,7 +383,11 @@ function updateHeader(){
   const other=role==='A'?'B':'A';
   $('hdr-name').textContent=ICONS[other]+' '+(nicks[other]||'...');
   const p=presData[other]; const el=$('hdr-pres'); const typ=$('typing');
-  if(!p||!p.last){el.innerHTML='<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;"></span>Last Active: অজানা</span>';typ.style.display='none';return;}
+  if(!p||!p.last){ // presence নেই — শেষ message এর ts থেকে বের করো
+  const other2=role==='A'?'B':'A';
+  const otherMsgs=msgs.filter(m=>m.role===other2&&m.ts);
+  const lastMsgTs=otherMsgs.length?Number(otherMsgs[otherMsgs.length-1].ts):0;
+  if(lastMsgTs){ const s2=Math.floor((Date.now()-lastMsgTs)/1000),h2=Math.floor(s2/3600),m2=Math.floor((s2%3600)/60),sec2=s2%60; const d2=Math.floor(h2/24);const la2=s2<60?s2+'s ago':h2<1?m2+'m '+sec2+'s ago':h2<12?h2+'h '+m2+'m ago':h2<24?h2+'h ago':d2+'d ago'; el.innerHTML='<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:#888;display:inline-block;"></span>Last Active '+la2+'</span>'; }else{ el.innerHTML='<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.3);border-radius:20px;padding:2px 10px;font-size:10px;color:#bbb;"><span style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;"></span>Last Active: অজানা</span>'; } typ.style.display='none';return;}
   if(p.typing&&Date.now()-p.last<5000){typ.style.display='block';typ.textContent=(nicks[other]||'অপর জন')+' লিখছে...';}
   else typ.style.display='none';
   const diff=Date.now()-Number(p.last);
@@ -392,13 +396,13 @@ function updateHeader(){
   let txt,dot;
   if(isOnline){const devBadge=p.device?`<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(100,80,200,0.4);border:1px solid #6655aa;font-size:9px;font-weight:700;color:#ccbbff;margin-left:3px;">${p.device}</span>`:'';txt='Online'+devBadge;dot='#22ee66';}
   else{
-    const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    const s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60,d=Math.floor(h/24);
     let la;
-    if(s<15)       la=`${s}s ago`;
-    else if(s<60)  la=`${s}s ago`;
+    if(s<60)       la=`${s}s ago`;
     else if(h<1)   la=`${m}m ${sec}s ago`;
     else if(h<12)  la=`${h}h ${m}m ago`;
-    else            la=h<24?`${h}h ago`:`${Math.floor(h/24)}d ago`;
+    else if(h<24)  la=`${h}h ago`;
+    else            la=`${d}d ago`;
     txt=`Last Active ${la}`;
     dot=diff<60000?'#ffaa22':diff<3600000?'#ff6644':'#888';
   }
@@ -447,8 +451,8 @@ function renderMsgs(){
       const isLastSeen = lastSeenMsg && m.id===lastSeenMsg.id;
       const isSeen = m.seen===true;
       if(isLastSeen || isSeen){
-        // lastSeenMsg হলে otherSeen time দেখাও, নইলে seenAt দেখাও
-        const seenTs = isLastSeen ? (otherSeenAt||otherSeen) : (m.seenAt||0);
+        // m.seenAt থাকলে সেটাই লক — otherSeenAt দিয়ে replace হবে না
+        const seenTs = m.seenAt ? Number(m.seenAt) : (isLastSeen ? (otherSeenAt||0) : 0);
         const seenTime = seenTs ? `<span class="seen-time" data-ts="${seenTs}" style="font-size:10px;opacity:.7;margin-left:3px;">${seenAgo(seenTs)}</span>` : '';
         // শুধু last seen message এ time দেখাব
         status=`<span style="color:#80ccff">Seen</span>${isLastSeen||!lastSeenMsg?seenTime:''}`;
@@ -563,6 +567,30 @@ function markSeen(){
   if(last&&last.ts) update(ref(db,`presence/${role}`),{seen:last.ts, seenAt:now}).catch(()=>{});
 }
 
+// ── NTFY NOTIFICATION ──
+async function sendNtfy(msgText){
+  const other=role==='A'?'B':'A';
+  const otherP=presData[other]||{};
+  const isOtherOnline=otherP.online===true && (Date.now()-Number(otherP.last||0))<25000;
+  if(isOtherOnline) return; // online থাকলে notification দরকার নেই
+  const otherTopic=ntfyTopics[other]||`anonchat_${other==='A'?'star':'moon'}`;
+  const myName=nicks[role]||(role==='A'?'Star':'Moon');
+  const isPhoto=msgText.startsWith('[photo]');
+  const body=isPhoto?(msgText.includes('\n')?'📷 Photo: '+msgText.split('\n').slice(1).join(' '):'📷 Photo'):msgText;
+  try{
+    await fetch(`https://ntfy.sh/${otherTopic}`,{
+      method:'POST',
+      headers:{
+        'Title':myName+' এ message করেছে',
+        'Priority':'default',
+        'Tags':'speech_balloon',
+        'X-No-Cache':'yes'
+      },
+      body:body
+    });
+  }catch(e){}
+}
+
 // ── SEND ──
 $('msg-input').addEventListener('input',function(){
   this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,120)+'px';
@@ -585,12 +613,16 @@ async function doSend(){
     if(hasBanned) startCooldown();
     return;
   }
-  const m={role,text:txt,ts:Date.now(),delivered:true};
+  // sequence নিশ্চিত করতে — seq field দিয়ে order ঠিক রাখো
+  if(!window._sendSeq) window._sendSeq=0;
+  window._sendSeq++;
+  const m={role,text:txt,ts:Date.now(),seq:window._sendSeq,delivered:true};
   if(hasBanned) m.bannedWords=hitWords;
   if(replyTo) m.replyTo=String(replyTo.ts||replyTo.id);
   clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto';
   ping(); // message পাঠানোর সাথে সাথে presence update
   await push(msgsRef,m);
+  if(!hasBanned) sendNtfy(txt).catch(()=>{});
   if(hasBanned){
     await push(msgsRef,{role:'system',text:`⚠️ ${nicks[role]||role} restricted word ব্যবহার করেছে — 5s নিষিদ্ধ!`,ts:Date.now(),system:true}).catch(()=>{});
     startCooldown(); return;
@@ -645,6 +677,7 @@ $('preview-send').onclick=async()=>{
     const txt=caption?`[photo]${d.secure_url}\n${caption}`:`[photo]${d.secure_url}`;
     await push(msgsRef,{role,text:txt,ts:Date.now(),delivered:true,replyTo:replyTo?String(replyTo.ts||replyTo.id):''});
     clearReply();
+    sendNtfy(txt).catch(()=>{});
     toast('✅ Photo sent!');
   }catch(e){toast('❌ Upload failed');}
   $('upload-bar').classList.remove('show');
