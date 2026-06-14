@@ -578,12 +578,11 @@ async function sendNtfy(msgText){
     await fetch(`https://ntfy.sh/${otherTopic}`,{
       method:'POST',
       headers:{
-        'Title':myName+' এ message করেছে',
+        'Title':encodeURIComponent(myName+' sent a message'),
         'Priority':'default',
-        'Tags':'speech_balloon',
-        'X-No-Cache':'yes'
+        'Tags':'speech_balloon'
       },
-      body:body
+      body:new Blob([body],{type:'text/plain;charset=utf-8'})
     });
   }catch(e){console.error('ntfy error:',e);}
 }
