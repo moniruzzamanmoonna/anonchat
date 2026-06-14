@@ -4231,6 +4231,7 @@ window.sendMessage = async function() {
       reactions: {}
     });
     cancelReply();
+    sendMsgNotification(text);
   } catch(e) {
     setStatus("⚠ পাঠানো যায়নি", true);
   }
@@ -4342,6 +4343,7 @@ async function uploadVoice(blob) {
         reactions: {}
       });
       cancelReply();
+      sendMsgNotification('[voice]');
       setStatus('', false);
     } else {
       setStatus('⚠ ভয়েস আপলোড হয়নি: ' + xhr.status, true);
@@ -4518,6 +4520,7 @@ window.sendMediaPreview = async function() {
         if (vo) { msgData.viewOnce = true; msgData.viewOnceSec = viewOnceDuration || 5; }
         await push(msgsRef, msgData);
         cancelReply();
+        sendMsgNotification(msgData.text);
       } else {
         const errMsg = data.error?.message || ("Status: " + xhr.status);
         console.error("Upload failed:", errMsg, xhr.responseText);
@@ -4570,7 +4573,7 @@ window.uploadPhoto = async function(event) {
           };
           if (viewOnceMode) { msgData.viewOnce = true; msgData.viewOnceSec = viewOnceDuration; }
           await push(msgsRef, msgData);
-          if (i === 0) cancelReply();
+          if (i === 0) { cancelReply(); sendMsgNotification('[photo]' + data.secure_url); }
           // Reset view once after sending
           if (viewOnceMode) {
             viewOnceMode = false;
@@ -5923,6 +5926,35 @@ window.musicRemoveFromQueue = function(idx) {
 // ═══════════════════════════════════════════════════════
 
 const NTFY_TOPICS = { A: "anonchat_star", B: "anonchat_moon" };
+
+// ── MESSAGE PUSH NOTIFICATION ──
+async function sendMsgNotification(text) {
+  if (!myRole) return;
+  const other = myRole === "A" ? "B" : "A";
+  // অন্যজন online থাকলে push পাঠাবো না
+  const op = presenceData[other];
+  if (op && op.online && (Date.now() - Number(op.last)) < 20000) return;
+  const topic = NTFY_TOPICS[other];
+  if (!topic) return;
+  const myName = nicknames[myRole] || (myRole === "A" ? "Star" : "Moon");
+  // photo/video/voice হলে summary দেখাবে
+  let body = text;
+  if (text.startsWith('[photo]')) body = '📷 Photo পাঠিয়েছে';
+  else if (text.startsWith('[video]')) body = '🎥 Video পাঠিয়েছে';
+  else if (text.startsWith('[voice]')) body = '🎙️ Voice message পাঠিয়েছে';
+  else if (text.length > 100) body = text.slice(0, 100) + '…';
+  try {
+    await fetch(`https://ntfy.sh/${topic}`, {
+      method: 'POST',
+      headers: {
+        'Title': `${myName} ✉️`,
+        'Priority': 'default',
+        'Tags': 'speech_balloon',
+      },
+      body
+    });
+  } catch(e) { /* silent fail */ }
+}
 
 let emergencyUnlisten = null;
 let emergencyDismissTs = 0;
