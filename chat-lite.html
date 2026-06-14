@@ -578,10 +578,9 @@ async function sendNtfy(msgText){
     await fetch(`https://ntfy.sh/${otherTopic}`,{
       method:'POST',
       headers:{
-        'Title':myName+' sent a message',
+        'Title':'New Message',
         'Priority':'default',
-        'Tags':'speech_balloon',
-        'Content-Type':'text/plain; charset=utf-8'
+        'Tags':'speech_balloon'
       },
       body:body
     });
