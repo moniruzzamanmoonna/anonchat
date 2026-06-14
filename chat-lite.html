@@ -570,9 +570,6 @@ function markSeen(){
 // ── NTFY NOTIFICATION ──
 async function sendNtfy(msgText){
   const other=role==='A'?'B':'A';
-  const otherP=presData[other]||{};
-  const isOtherOnline=otherP.online===true && (Date.now()-Number(otherP.last||0))<25000;
-  if(isOtherOnline) return; // online থাকলে notification দরকার নেই
   const otherTopic=ntfyTopics[other]||`anonchat_${other==='A'?'star':'moon'}`;
   const myName=nicks[role]||(role==='A'?'Star':'Moon');
   const isPhoto=msgText.startsWith('[photo]');
@@ -588,7 +585,7 @@ async function sendNtfy(msgText){
       },
       body:body
     });
-  }catch(e){}
+  }catch(e){console.error('ntfy error:',e);}
 }
 
 // ── SEND ──
