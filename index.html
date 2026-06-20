@@ -5925,35 +5925,42 @@ window.musicRemoveFromQueue = function(idx) {
 // ── EMERGENCY CALL SYSTEM (ntfy.sh) ────────────────────
 // ═══════════════════════════════════════════════════════
 
-const NTFY_TOPICS = { A: "anonchat_star", B: "anonchat_moon" };
+const NTFY_TOPICS = { A: "anonchat_star", B: "anonchat_moon" }; // fallback / unused now
+const TG_BOT_TOKEN = "8678683280:AAHf2IfUNAXVAbF4Pe3z36O6urX50E7EQoo";
+const TG_CHAT_IDS = { A: "7238621151", B: "8668368602" };
 
 // ── MESSAGE PUSH NOTIFICATION ──
+let _ntfyLastSent = 0;
+let _ntfyPendingBody = null;
+let _ntfyPendingTimer = null;
+
 async function sendMsgNotification(text) {
   if (!myRole) return;
   const other = myRole === "A" ? "B" : "A";
   // অন্যজন online থাকলে push পাঠাবো না
   const op = presenceData[other];
   if (op && op.online && (Date.now() - Number(op.last)) < 20000) return;
-  const topic = NTFY_TOPICS[other];
-  if (!topic) return;
+  const chatId = TG_CHAT_IDS[other];
+  if (!chatId) return;
   const myName = nicknames[myRole] || (myRole === "A" ? "Star" : "Moon");
-  // photo/video/voice হলে summary দেখাবে
   let body = text;
   if (text.startsWith('[photo]')) body = '📷 Photo পাঠিয়েছে';
   else if (text.startsWith('[video]')) body = '🎥 Video পাঠিয়েছে';
   else if (text.startsWith('[voice]')) body = '🎙️ Voice message পাঠিয়েছে';
   else if (text.length > 100) body = text.slice(0, 100) + '…';
-  try {
-    await fetch(`https://ntfy.sh/${topic}`, {
-      method: 'POST',
-      headers: {
-        'Title': `${myName} ✉️`,
-        'Priority': 'default',
-        'Tags': 'speech_balloon',
-      },
-      body
-    });
-  } catch(e) { /* silent fail */ }
+
+  // ── Debounce: 800ms এর মধ্যে একাধিক message একসাথে এলে শুধু শেষটা পাঠাও ──
+  _ntfyPendingBody = body;
+  clearTimeout(_ntfyPendingTimer);
+  _ntfyPendingTimer = setTimeout(async () => {
+    const finalBody = _ntfyPendingBody;
+    _ntfyPendingBody = null;
+    try {
+      const msg = encodeURIComponent(`${myName} ✉️\n${finalBody}`);
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${chatId}&text=${msg}`);
+      if (!res.ok) console.log('telegram notify failed:', res.status);
+    } catch(e) { /* silent fail */ }
+  }, 800);
 }
 
 let emergencyUnlisten = null;
@@ -5999,34 +6006,25 @@ window.sendEmergency = async function() {
   if (!myRole) return;
   const otherRole = myRole === 'A' ? 'B' : 'A';
   const myName = nicknames[myRole] || (myRole === 'A' ? 'Star' : 'Moon');
-  const otherTopic = NTFY_TOPICS[otherRole];
+  const otherChatId = TG_CHAT_IDS[otherRole];
 
   // ১. Firebase (tab খোলা থাকলে real-time banner)
   await set(ref(db, 'emergency'), {
     target: otherRole, sender: myRole, senderName: myName, ts: Date.now()
   });
 
-  // ২. ntfy push (tab বন্ধ থাকলেও phone-এ notification আসবে)
+  // ২. Telegram push (tab বন্ধ থাকলেও phone-এ notification আসবে)
   try {
-    const otherName = nicknames[otherRole] || (otherRole === 'A' ? 'Star' : 'Moon');
-    const res = await fetch(`https://ntfy.sh/${otherTopic}`, {
-      method: 'POST',
-      headers: {
-        'Title': 'Emergency SOS',
-        'Priority': 'urgent',
-        'Tags': 'rotating_light',
-      },
-      body: 'An urgent call! Come to chat now!'
-    });
+    const msg = encodeURIComponent(`🚨 EMERGENCY SOS\n${myName} এখনই chat-এ আসার জন্য বলছে!`);
+    const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${otherChatId}&text=${msg}`);
     if (res.ok) {
-      alert('✅ ntfy sent! topic: ' + otherTopic);
+      setStatus('✅ SOS পাঠানো হয়েছে', false);
+      setTimeout(() => setStatus('', false), 2000);
     } else {
-      alert('❌ ntfy error: ' + res.status);
+      console.log('telegram SOS error:', res.status);
     }
-    console.log('ntfy response:', res.status, otherTopic);
   } catch(e) {
-    alert('❌ Network error: ' + e.message);
-    console.log('ntfy error:', e);
+    console.log('telegram network error:', e);
   }
 
   if ('vibrate' in navigator) navigator.vibrate([100,50,100]);
