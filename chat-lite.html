@@ -568,23 +568,33 @@ function markSeen(){
 }
 
 // ── NTFY NOTIFICATION ──
+// ── TELEGRAM PUSH NOTIFICATION ──
+const TG_BOT_TOKEN='8678683280:AAHf2IfUNAXVAbF4Pe3z36O6urX50E7EQoo';
+const TG_CHAT_IDS={A:'7238621151',B:'8668368602'}; // A=Star, B=Moon
+let _ntfyTimer=null;
 async function sendNtfy(msgText){
+  if(_ntfyTimer) clearTimeout(_ntfyTimer);
+  _ntfyTimer=setTimeout(()=>_doSendNtfy(msgText),800);
+}
+async function _doSendNtfy(msgText){
   const other=role==='A'?'B':'A';
-  const otherTopic=ntfyTopics[other]||`anonchat_${other==='A'?'star':'moon'}`;
+  // অপরজন online থাকলে push skip করো
+  const otherP=presData[other]||{};
+  const isOtherOnline=otherP.online===true && (Date.now()-Number(otherP.last||0))<25000;
+  if(isOtherOnline) return;
+  const chatId=TG_CHAT_IDS[other];
+  if(!chatId) return;
   const myName=nicks[role]||(role==='A'?'Star':'Moon');
   const isPhoto=msgText.startsWith('[photo]');
   const body=isPhoto?(msgText.includes('\n')?'📷 Photo: '+msgText.split('\n').slice(1).join(' '):'📷 Photo'):msgText;
+  const text=`💬 ${myName}: ${body}`;
   try{
-    await fetch(`https://ntfy.sh/${otherTopic}`,{
+    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
       method:'POST',
-      headers:{
-        'Title':'New Message',
-        'Priority':'default',
-        'Tags':'speech_balloon'
-      },
-      body:body
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId,text:text})
     });
-  }catch(e){console.error('ntfy error:',e);}
+  }catch(e){console.error('telegram error:',e);}
 }
 
 // ── SEND ──
@@ -799,11 +809,15 @@ $('emerg-confirm').onclick=async()=>{
   $('emodal').classList.remove('open');
   const other=role==='A'?'B':'A';
   const myName=nicks[role]||(role==='A'?'Star':'Moon');
-  const otherTopic=ntfyTopics[other]||`anonchat_${other==='A'?'star':'moon'}`;
+  const chatId=TG_CHAT_IDS[other];
   await set(emergRef,{target:other,sender:role,senderName:myName,ts:Date.now()});
   try{
-    const res=await fetch(`https://ntfy.sh/${otherTopic}`,{method:'POST',headers:{'Title':'Emergency SOS','Priority':'urgent','Tags':'rotating_light'},body:'An urgent call! Come to chat now!'});
-    toast(res.ok?'✅ Emergency sent!':'❌ ntfy error: '+res.status);
+    const res=await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId,text:`🚨 Emergency SOS from ${myName}! Come to chat now!`})
+    });
+    toast(res.ok?'✅ Emergency sent!':'❌ Telegram error: '+res.status);
   }catch(e){toast('❌ '+e.message);}
   if('vibrate' in navigator) navigator.vibrate([100,50,100]);
 };
