@@ -2086,6 +2086,15 @@ function startListeners() {
     window.__presenceData = presenceData; // debug
     updatePresence();
     updateGamePresence();
+    checkLongOffline();
+    // অন্যজন online হলে তার alert flag reset করো (নতুনভাবে track শুরু হবে)
+    if (myRole) {
+      const other = myRole === "A" ? "B" : "A";
+      const op = presenceData[other];
+      if (op && op.online && (Date.now() - Number(op.last)) < 20000) {
+        remove(ref(db, `longOfflineAlertSent/${other}`)).catch(() => {});
+      }
+    }
     // Update only last message seen tick directly in DOM
     if (allMessages.length) {
       const last = allMessages[allMessages.length - 1];
@@ -5928,6 +5937,78 @@ window.musicRemoveFromQueue = function(idx) {
 const NTFY_TOPICS = { A: "anonchat_star", B: "anonchat_moon" }; // fallback / unused now
 const TG_BOT_TOKEN = "8678683280:AAHf2IfUNAXVAbF4Pe3z36O6urX50E7EQoo";
 const TG_CHAT_IDS = { A: "7238621151", B: "8668368602" };
+
+// ── 12h+ OFFLINE ALERT ──
+// অন্যজন 12 ঘণ্টার বেশি offline থাকলে আমাকে Telegram-এ একবার জানাবে (দিনে একবারই, repeat না)
+const longOfflineRef = ref(db, "longOfflineAlertSent");
+async function checkLongOffline() {
+  if (!myRole) return;
+  const other = myRole === "A" ? "B" : "A";
+  const op = presenceData[other];
+  if (!op || !op.last) return;
+  const diff = Date.now() - Number(op.last);
+  const TWELVE_H = 12 * 60 * 60 * 1000;
+  if (diff < TWELVE_H) return;
+
+  try {
+    const snap = await get(longOfflineRef);
+    const sentData = snap.val() || {};
+    const lastSentForOther = sentData[other] || 0;
+    // একই offline period-এ বারবার পাঠাবো না — শেষ alert এর পর অন্তত 12h গ্যাপ থাকবে
+    if (Date.now() - lastSentForOther < TWELVE_H) return;
+
+    const otherName = nicknames[other] || (other === "A" ? "Star" : "Moon");
+    const myChatId = TG_CHAT_IDS[myRole];
+    const hours = Math.floor(diff / (60*60*1000));
+    const msg = encodeURIComponent(`⏰ ${otherName} প্রায় ${hours} ঘণ্টা ধরে অফলাইন আছে।`);
+    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${myChatId}&text=${msg}`);
+    await set(ref(db, `longOfflineAlertSent/${other}`), Date.now());
+  } catch(e) { console.log('longOffline check error:', e); }
+}
+setInterval(checkLongOffline, 15 * 60 * 1000); // প্রতি ১৫ মিনিটে চেক করবে
+
+// ── DAILY SUMMARY (রাত ১১টায় একবার) ──
+async function sendDailySummaryIfDue() {
+  if (!myRole) return;
+  const now = new Date();
+  if (now.getHours() !== 23) return; // রাত ১১টা থেকে ১১:৫৯ এর মধ্যে চেক
+
+  const todayKey = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  try {
+    const flagRef = ref(db, `dailySummarySent/${todayKey}`);
+    const flagSnap = await get(flagRef);
+    if (flagSnap.exists()) return; // আজকেরটা already পাঠানো হয়েছে
+
+    // আজকের message গুলো count করো allMessages থেকে
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const todayMsgs = allMessages.filter(m => m.ts && Number(m.ts) >= todayStart.getTime() && !m.system);
+    if (todayMsgs.length === 0) return; // কোনো message না থাকলে summary পাঠাবো না
+
+    const countA = todayMsgs.filter(m => m.role === 'A').length;
+    const countB = todayMsgs.filter(m => m.role === 'B').length;
+    const nameA = nicknames.A || 'Star';
+    const nameB = nicknames.B || 'Moon';
+    const total = todayMsgs.length;
+    const photoCount = todayMsgs.filter(m => m.text && m.text.startsWith('[photo]')).length;
+    const voiceCount = todayMsgs.filter(m => m.text && m.text.startsWith('[voice]')).length;
+
+    let summary = `📊 আজকের সারাংশ\n\n`;
+    summary += `💬 মোট মেসেজ: ${total}\n`;
+    summary += `${ICONS.A} ${nameA}: ${countA}\n`;
+    summary += `${ICONS.B} ${nameB}: ${countB}\n`;
+    if (photoCount) summary += `📷 ছবি: ${photoCount}\n`;
+    if (voiceCount) summary += `🎙️ ভয়েস: ${voiceCount}\n`;
+
+    // flag আগে set করো — race condition এ duplicate ঠেকাতে
+    await set(flagRef, true);
+
+    const msgEnc = encodeURIComponent(summary);
+    // দুজনকেই পাঠাও
+    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${TG_CHAT_IDS.A}&text=${msgEnc}`);
+    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${TG_CHAT_IDS.B}&text=${msgEnc}`);
+  } catch(e) { console.log('daily summary error:', e); }
+}
+setInterval(sendDailySummaryIfDue, 10 * 60 * 1000); // প্রতি ১০ মিনিটে চেক করবে (রাত ১১টায় match করলে পাঠাবে)
 
 // ── MESSAGE PUSH NOTIFICATION ──
 let _ntfyLastSent = 0;
