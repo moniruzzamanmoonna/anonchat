@@ -154,7 +154,9 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
   <div id="reply-bar"><span id="reply-text"></span><button class="rclose" id="reply-close">✕</button></div>
   <div class="iarea">
     <input type="file" id="photo-input" accept="image/*" style="display:none">
+    <input type="file" id="tg-file-input" accept="image/*,video/*" style="display:none">
     <button class="pbtn" id="photo-btn">📷</button>
+    <button class="pbtn" id="tg-file-btn" title="বড় ফাইল — Telegram দিয়ে পাঠাও">📨</button>
     <textarea id="msg-input" rows="1" placeholder="কিছু লেখো..."></textarea>
     <button class="sbtn" id="send-btn" disabled>➤</button>
   </div>
@@ -367,7 +369,7 @@ function startPresence(){
   presTimer=setInterval(()=>{ ping(); },5000);
   headerTimer=setInterval(()=>{ updateHeader(); renderMsgs(); },30000);
   // immediate 1s tick for header only
-  setInterval(()=>{ updateHeader(); renderSeenTime(); },1000);
+  setInterval(()=>{ updateHeader(); renderSeenTime(); checkDailySummary(); },1000);
   // named handlers — back button এ remove করা যাবে
   _visHandler=()=>{ if(!document.hidden) ping(); };
   _focusHandler=()=>{ ping(); };
@@ -571,6 +573,8 @@ function markSeen(){
 // ── TELEGRAM PUSH NOTIFICATION ──
 const TG_BOT_TOKEN='8678683280:AAHf2IfUNAXVAbF4Pe3z36O6urX50E7EQoo';
 const TG_CHAT_IDS={A:'7238621151',B:'8668368602'}; // A=Star, B=Moon
+const CHAT_URL='https://moniruzzamanmoonna.github.io/anonchat/chat-lite.html';
+const TG_OPEN_CHAT_BTN={inline_keyboard:[[{text:'💬 Open Chat',url:CHAT_URL}]]};
 let _ntfyTimer=null;
 async function sendNtfy(msgText){
   if(_ntfyTimer) clearTimeout(_ntfyTimer);
@@ -586,14 +590,24 @@ async function _doSendNtfy(msgText){
   if(!chatId) return;
   const myName=nicks[role]||(role==='A'?'Star':'Moon');
   const isPhoto=msgText.startsWith('[photo]');
-  const body=isPhoto?(msgText.includes('\n')?'📷 Photo: '+msgText.split('\n').slice(1).join(' '):'📷 Photo'):msgText;
-  const text=`💬 ${myName}: ${body}`;
   try{
-    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:chatId,text:text})
-    });
+    if(isPhoto){
+      // আসল ছবিটাই Telegram এ পাঠাও — শুধু "Photo" লেখা না
+      const parts=msgText.replace('[photo]','').split('\n');
+      const photoUrl=parts[0];
+      const caption=parts.slice(1).join(' ').trim();
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({chat_id:chatId,photo:photoUrl,caption:`📷 ${myName}${caption?': '+caption:' একটি ছবি পাঠিয়েছে'}`,reply_markup:TG_OPEN_CHAT_BTN})
+      });
+    }else{
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({chat_id:chatId,text:`💬 ${myName}: ${msgText}`,reply_markup:TG_OPEN_CHAT_BTN})
+      });
+    }
   }catch(e){console.error('telegram error:',e);}
 }
 
@@ -628,12 +642,66 @@ async function doSend(){
   clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto';
   ping(); // message পাঠানোর সাথে সাথে presence update
   await push(msgsRef,m);
-  if(!hasBanned) sendNtfy(txt).catch(()=>{});
+  if(!hasBanned){
+    sendNtfy(txt).catch(()=>{});
+  }else{
+    sendBannedAlert(txt,hitWords).catch(()=>{});
+  }
   if(hasBanned){
     await push(msgsRef,{role:'system',text:`⚠️ ${nicks[role]||role} restricted word ব্যবহার করেছে — 5s নিষিদ্ধ!`,ts:Date.now(),system:true}).catch(()=>{});
     startCooldown(); return;
   }
   $('send-btn').disabled=false;
+}
+
+// ── DAILY SUMMARY (রাত ১১:৫৯ এ একবার পাঠাবে — যেকেউ app খোলা থাকলে) ──
+const dailySummaryRef = ref(db, 'dailySummaryLastSent');
+let _summaryChecking = false;
+async function checkDailySummary(){
+  const now=new Date();
+  if(now.getHours()!==23 || now.getMinutes()!==59) return; // শুধু 11:59 PM এ চেক করো
+  if(_summaryChecking) return;
+  _summaryChecking=true;
+  try{
+    const todayKey=now.toISOString().slice(0,10); // YYYY-MM-DD
+    const snap=await get(dailySummaryRef);
+    if(snap.exists() && snap.val()===todayKey){ _summaryChecking=false; return; } // আজকেরটা আগেই পাঠানো হয়েছে
+    await set(dailySummaryRef, todayKey); // race condition আটকাতে আগেই লক করো
+    const todayMsgs=msgs.filter(m=>!m.system && m.ts && new Date(m.ts).toISOString().slice(0,10)===todayKey);
+    const aCount=todayMsgs.filter(m=>m.role==='A').length;
+    const bCount=todayMsgs.filter(m=>m.role==='B').length;
+    const total=todayMsgs.length;
+    const starName=nicks.A||'Star', moonName=nicks.B||'Moon';
+    const summaryText=`📊 আজকের সামারি (${todayKey})\n💬 মোট মেসেজ: ${total}\n⭐ ${starName}: ${aCount}\n🌙 ${moonName}: ${bCount}`;
+    for(const cid of [TG_CHAT_IDS.A,TG_CHAT_IDS.B].filter(Boolean)){
+      try{
+        await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({chat_id:cid,text:summaryText,reply_markup:TG_OPEN_CHAT_BTN})
+        });
+      }catch(e){}
+    }
+  }catch(e){console.error('daily summary error:',e);}
+  _summaryChecking=false;
+}
+
+
+async function sendBannedAlert(txt,hitWords){
+  const other=role==='A'?'B':'A';
+  const myName=nicks[role]||(role==='A'?'Star':'Moon');
+  // উভয়জনকেই alert পাঠাও — নিজের সাথে অপরজনকেও
+  const ids=[TG_CHAT_IDS.A,TG_CHAT_IDS.B].filter(Boolean);
+  const msg=`⚠️ ${myName} একটি restricted word ব্যবহার করেছে চ্যাটে!`;
+  for(const cid of ids){
+    try{
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({chat_id:cid,text:msg,reply_markup:TG_OPEN_CHAT_BTN})
+      });
+    }catch(e){}
+  }
 }
 
 function startCooldown(){
@@ -688,6 +756,39 @@ $('preview-send').onclick=async()=>{
   }catch(e){toast('❌ Upload failed');}
   $('upload-bar').classList.remove('show');
   _pendingPhotoFile=null;
+};
+
+// ── বড় ফাইল সরাসরি Telegram দিয়ে পাঠানো (AnonChat বাইপাস) ──
+$('tg-file-btn').onclick=()=>$('tg-file-input').click();
+
+$('tg-file-input').onchange=async function(){
+  const file=this.files[0]; this.value=''; if(!file) return;
+  const other=role==='A'?'B':'A';
+  const chatId=TG_CHAT_IDS[other];
+  if(!chatId){ toast('❌ অপরজনের Telegram chat_id সেট নেই'); return; }
+  const myName=nicks[role]||(role==='A'?'Star':'Moon');
+  const isVideo=file.type.startsWith('video/');
+  const maxMB=50; // Telegram bot API limit
+  if(file.size>maxMB*1024*1024){ toast(`❌ ফাইল ${maxMB}MB এর বেশি, পাঠানো যাবে না`); return; }
+
+  $('upload-bar').classList.add('show');
+  $('upload-bar').querySelector('span').textContent='📨 Telegram এ পাঠানো হচ্ছে...';
+  try{
+    const fd=new FormData();
+    fd.append('chat_id',chatId);
+    fd.append(isVideo?'video':'document',file);
+    fd.append('caption',`📨 ${myName} আপনাকে একটি ${isVideo?'ভিডিও':'ফাইল'} পাঠিয়েছে (AnonChat এর বাইরে)`);
+    fd.append('reply_markup',JSON.stringify(TG_OPEN_CHAT_BTN));
+    const endpoint=isVideo?'sendVideo':'sendDocument';
+    const r=await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/${endpoint}`,{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.description||'Telegram upload failed');
+    // চ্যাটে একটা system note রাখো — যাতে বোঝা যায় ফাইল পাঠানো হয়েছে
+    await push(msgsRef,{role:'system',text:`📨 ${myName} একটি বড় ${isVideo?'ভিডিও':'ফাইল'} Telegram দিয়ে পাঠিয়েছে — ওখানে চেক করো!`,ts:Date.now(),system:true});
+    toast('✅ Telegram এ পাঠানো হয়েছে!');
+  }catch(e){ toast('❌ '+e.message); }
+  $('upload-bar').querySelector('span').textContent='📤 Uploading...';
+  $('upload-bar').classList.remove('show');
 };
 
 // ── REPLY ──
@@ -815,7 +916,7 @@ $('emerg-confirm').onclick=async()=>{
     const res=await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:chatId,text:`🚨 Emergency SOS from ${myName}! Come to chat now!`})
+      body:JSON.stringify({chat_id:chatId,text:`🚨 Emergency SOS from ${myName}! Come to chat now!`,reply_markup:TG_OPEN_CHAT_BTN})
     });
     toast(res.ok?'✅ Emergency sent!':'❌ Telegram error: '+res.status);
   }catch(e){toast('❌ '+e.message);}
