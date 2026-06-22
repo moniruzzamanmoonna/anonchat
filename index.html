@@ -1749,6 +1749,9 @@ window.setTheme = function(name, fromRemote) {
   const dot = document.getElementById('t-' + name);
   if (dot) dot.classList.add('active');
   localStorage.setItem('anon-theme', name);
+  if (!fromRemote) {
+    set(themeRef, name).catch(() => {});
+  }
 }
 
 const savedTheme = localStorage.getItem('anon-theme');
@@ -2115,8 +2118,14 @@ function startListeners() {
   });
 
   // Theme sync
-  // Theme is now personal (localStorage only) — don't sync from Firebase
-  // unsubTheme not needed
+  // Theme sync — অন্যজন theme পরিবর্তন করলে দুজনের কাছেই সেটা apply হবে
+  unsubTheme = onValue(themeRef, snapshot => {
+    const remoteTheme = snapshot.val();
+    if (remoteTheme && THEMES[remoteTheme]) {
+      const saved = localStorage.getItem('anon-theme') || 'purple';
+      if (remoteTheme !== saved) setTheme(remoteTheme, true);
+    }
+  });
 
   // Pin listener
   unsubPin = onValue(pinRef, snap => {
@@ -6186,7 +6195,9 @@ window.sendEmergency = async function() {
   <div class="dot-item" onclick="dotAction('archive-view')"><span class="dot-item-icon">🗂️</span>Archive দেখো</div>
   <div class="dot-item" id="dot-archive-btn" style="display:none;" onclick="dotAction('archive-now')"><span class="dot-item-icon">🗃️</span>Archive করো</div>
   <div class="dot-item" onclick="window.location.href='chat-lite.html'"><span class="dot-item-icon">🌤️</span>Go to Light</div>
+  <div class="dot-item" onclick="toggleDotMenu();showFunnyStats()"><span class="dot-item-icon">📊</span>Funny analytics</div>
   <div class="dot-item danger" onclick="toggleDotMenu();openEmergencyModal()"><span class="dot-item-icon">🆘</span>Emergency Call</div>
+  <div class="dot-item danger" id="dot-block-btn" onclick="toggleDotMenu();blockOtherFor1h()"><span class="dot-item-icon">🚫</span><span id="dot-block-label">Block other (1h)</span></div>
 </div>
 
 <style id="aesthetics-styles">
@@ -6239,50 +6250,6 @@ body[data-font="serif"]   { font-family:'Hind Siliguri', Georgia, serif; }
 body[data-font="mono"]    { font-family:'Hind Siliguri', 'JetBrains Mono', ui-monospace, monospace; }
 body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', sans-serif; }
 
-/* ── Floating aesthetics button + panel ────────────────── */
-#aesthetics-fab {
-  position:fixed; top:78px; right:10px; z-index:450;
-  width:38px; height:38px; border-radius:50%;
-  background:linear-gradient(135deg,#5a2a9e,#aa3a7e);
-  border:1px solid rgba(255,255,255,0.18);
-  display:flex; align-items:center; justify-content:center;
-  font-size:18px; cursor:pointer; box-shadow:0 4px 14px rgba(90,40,160,0.55);
-  transition:transform 0.18s; user-select:none;
-}
-#aesthetics-fab:active { transform:scale(0.92); }
-#aesthetics-fab::after {
-  content:''; position:absolute; inset:-3px; border-radius:50%;
-  background:linear-gradient(135deg,#aa3a7e,#5a2a9e); opacity:0.6;
-  filter:blur(8px); z-index:-1; animation:fab-pulse 3s ease-in-out infinite;
-}
-@keyframes fab-pulse { 0%,100%{opacity:0.4}50%{opacity:0.75} }
-
-#aesthetics-panel {
-  position:fixed; top:120px; right:10px; z-index:500;
-  width:280px; max-height:75vh; overflow-y:auto;
-  background:rgba(14,10,30,0.96); backdrop-filter:blur(20px);
-  border:1px solid rgba(140,110,210,0.35); border-radius:18px;
-  padding:14px; color:#d6ccff; box-shadow:0 12px 40px rgba(0,0,0,0.6);
-  opacity:0; transform:translateY(-8px) scale(0.96); pointer-events:none;
-  transition:all 0.22s cubic-bezier(0.34,1.56,0.64,1);
-}
-#aesthetics-panel.open { opacity:1; transform:translateY(0) scale(1); pointer-events:all; }
-#aesthetics-panel h4 { font-size:12px; color:#9988dd; font-weight:500; margin:10px 0 6px; letter-spacing:0.5px; text-transform:uppercase; }
-#aesthetics-panel h4:first-child { margin-top:0; }
-.aes-row { display:flex; gap:6px; flex-wrap:wrap; }
-.aes-chip {
-  padding:7px 11px; border-radius:12px; font-size:12px; cursor:pointer;
-  background:rgba(40,28,70,0.7); border:1px solid rgba(110,90,170,0.4);
-  color:#c4b5e8; transition:all 0.15s; user-select:none;
-}
-.aes-chip:active { transform:scale(0.94); }
-.aes-chip.active { background:linear-gradient(135deg,#5a2a9e,#aa3a7e); color:#fff; border-color:transparent; box-shadow:0 0 0 1px rgba(255,255,255,0.15) inset; }
-.aes-swatch {
-  width:34px; height:34px; border-radius:10px; cursor:pointer;
-  border:2px solid transparent; transition:all 0.15s; position:relative;
-}
-.aes-swatch.active { border-color:#fff; transform:scale(1.08); }
-.aes-swatch:active { transform:scale(0.92); }
 </style>
 
 <div id="fx-bg" aria-hidden="true">
@@ -6292,153 +6259,7 @@ body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', 
   <div class="stars"></div>
 </div>
 
-<div id="aesthetics-fab" title="Aesthetics" onclick="toggleAesthetics(event)">✨</div>
-<div id="aesthetics-panel" onclick="event.stopPropagation()">
-  <h4>🎨 Theme</h4>
-  <div class="aes-row" id="aes-themes"></div>
-  <h4>💬 Bubble shape</h4>
-  <div class="aes-row" id="aes-bubbles"></div>
-  <h4>🔤 Font</h4>
-  <div class="aes-row" id="aes-fonts"></div>
-  <h4>🌌 Background FX</h4>
-  <div class="aes-row" id="aes-fx"></div>
-</div>
 
-<script>
-(function(){
-  const THEMES = {
-    midnight: { label:'Midnight',  swatch:'linear-gradient(135deg,#0a0a1a,#2a1a5e)',
-      vars:{ '--bg':'#0a0a1a','--header-bg':'rgba(10,10,30,0.95)',
-             '--bme-bg':'linear-gradient(135deg,#2a1a5e,#3a1a6e)','--bme-border':'#4a2a8a','--bme-color':'#d0c0ff',
-             '--bot-bg':'linear-gradient(135deg,#0a2040,#0a3050)','--bot-border':'#1a5070','--bot-color':'#b0d8f0',
-             '--title':'#c0b0ff','--send-bg':'linear-gradient(135deg,#3a1a7e,#5a2a9e)',
-             '--input-bg':'rgba(45,35,80,0.95)','--input-border':'#5a4a9a','--border':'#2a2a4a',
-             '--fx-a1':'#5a2a9e','--fx-a2':'#1a4a8a','--fx-a3':'#aa3a7e' } },
-    aurora: { label:'Aurora', swatch:'linear-gradient(135deg,#0a1a2a,#2a8a6e)',
-      vars:{ '--bg':'#06121e','--header-bg':'rgba(8,18,30,0.95)',
-             '--bme-bg':'linear-gradient(135deg,#0a4a5a,#1a6a7e)','--bme-border':'#1a8aaa','--bme-color':'#c0f0ee',
-             '--bot-bg':'linear-gradient(135deg,#1a3a2a,#2a5a3e)','--bot-border':'#3a8a5a','--bot-color':'#c0eed0',
-             '--title':'#a0f0d0','--send-bg':'linear-gradient(135deg,#1a8a8a,#3aaa6e)',
-             '--input-bg':'rgba(10,35,60,0.95)','--input-border':'#1a5a8a','--border':'#1a3a4a',
-             '--fx-a1':'#1a8aaa','--fx-a2':'#2a8a6e','--fx-a3':'#5acca8' } },
-    sakura: { label:'Sakura', swatch:'linear-gradient(135deg,#1a0a1a,#cc6688)',
-      vars:{ '--bg':'#1a0a14','--header-bg':'rgba(26,10,20,0.95)',
-             '--bme-bg':'linear-gradient(135deg,#6a1a3e,#aa3a6e)','--bme-border':'#cc4a7e','--bme-color':'#ffd0e0',
-             '--bot-bg':'linear-gradient(135deg,#3a1a2a,#5a2a4e)','--bot-border':'#7a3a5e','--bot-color':'#f0c0d0',
-             '--title':'#ffb0c8','--send-bg':'linear-gradient(135deg,#cc4a7e,#ee6aaa)',
-             '--input-bg':'rgba(40,15,28,0.8)','--input-border':'#4a1a30','--border':'#3a1a28',
-             '--fx-a1':'#cc4a7e','--fx-a2':'#aa3a6e','--fx-a3':'#ff8aaa' } },
-    noir: { label:'Noir', swatch:'linear-gradient(135deg,#0a0a0a,#444)',
-      vars:{ '--bg':'#070708','--header-bg':'rgba(10,10,12,0.95)',
-             '--bme-bg':'linear-gradient(135deg,#1a1a1e,#2a2a30)','--bme-border':'#3a3a44','--bme-color':'#dcdce0',
-             '--bot-bg':'linear-gradient(135deg,#141418,#1e1e24)','--bot-border':'#2a2a32','--bot-color':'#b8b8c0',
-             '--title':'#e8e8ee','--send-bg':'linear-gradient(135deg,#3a3a44,#5a5a66)',
-             '--input-bg':'rgba(40,40,48,0.95)','--input-border':'#4a4a58','--border':'#1e1e24',
-             '--fx-a1':'#444455','--fx-a2':'#222233','--fx-a3':'#666677' } },
-  };
-
-  const BUBBLES = [
-    { id:'default', label:'Default' },
-    { id:'round',   label:'Round'   },
-    { id:'square',  label:'Square'  },
-    { id:'cloud',   label:'Cloud'   },
-    { id:'paper',   label:'Paper'   },
-  ];
-  const FONTS = [
-    { id:'default', label:'Hind' },
-    { id:'serif',   label:'Serif' },
-    { id:'mono',    label:'Mono' },
-    { id:'rounded', label:'Rounded' },
-  ];
-  const FX = [
-    { id:'on',  label:'On'  },
-    { id:'off', label:'Off' },
-  ];
-
-  function applyTheme(id) {
-    const t = THEMES[id] || THEMES.midnight;
-    const root = document.documentElement;
-    Object.entries(t.vars).forEach(([k,v]) => root.style.setProperty(k,v));
-    localStorage.setItem('aesTheme', id);
-    document.querySelectorAll('#aes-themes .aes-swatch').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === id);
-    });
-  }
-  function applyBubble(id) {
-    document.body.setAttribute('data-bubble', id);
-    localStorage.setItem('aesBubble', id);
-    document.querySelectorAll('#aes-bubbles .aes-chip').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === id);
-    });
-  }
-  function applyFont(id) {
-    document.body.setAttribute('data-font', id);
-    localStorage.setItem('aesFont', id);
-    document.querySelectorAll('#aes-fonts .aes-chip').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === id);
-    });
-  }
-  function applyFx(id) {
-    document.body.setAttribute('data-fx', id);
-    localStorage.setItem('aesFx', id);
-    document.querySelectorAll('#aes-fx .aes-chip').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === id);
-    });
-  }
-
-  function build() {
-    const tWrap = document.getElementById('aes-themes');
-    Object.entries(THEMES).forEach(([id, t]) => {
-      const s = document.createElement('div');
-      s.className = 'aes-swatch'; s.dataset.id = id;
-      s.style.background = t.swatch; s.title = t.label;
-      s.onclick = () => applyTheme(id);
-      tWrap.appendChild(s);
-    });
-    const bWrap = document.getElementById('aes-bubbles');
-    BUBBLES.forEach(b => {
-      const c = document.createElement('div');
-      c.className = 'aes-chip'; c.dataset.id = b.id; c.textContent = b.label;
-      c.onclick = () => applyBubble(b.id);
-      bWrap.appendChild(c);
-    });
-    const fWrap = document.getElementById('aes-fonts');
-    FONTS.forEach(f => {
-      const c = document.createElement('div');
-      c.className = 'aes-chip'; c.dataset.id = f.id; c.textContent = f.label;
-      c.onclick = () => applyFont(f.id);
-      fWrap.appendChild(c);
-    });
-    const xWrap = document.getElementById('aes-fx');
-    FX.forEach(f => {
-      const c = document.createElement('div');
-      c.className = 'aes-chip'; c.dataset.id = f.id; c.textContent = f.label;
-      c.onclick = () => applyFx(f.id);
-      xWrap.appendChild(c);
-    });
-    const savedAesTheme = localStorage.getItem('aesTheme');
-    if (savedAesTheme && THEMES[savedAesTheme]) applyTheme(savedAesTheme);
-    // else: don't override main theme
-    applyBubble(localStorage.getItem('aesBubble') || 'default');
-    applyFont(localStorage.getItem('aesFont')    || 'default');
-    applyFx(localStorage.getItem('aesFx')        || 'on');
-  }
-
-  window.toggleAesthetics = function(e) {
-    e && e.stopPropagation();
-    document.getElementById('aesthetics-panel').classList.toggle('open');
-  };
-  document.addEventListener('click', (e) => {
-    const p = document.getElementById('aesthetics-panel');
-    const fab = document.getElementById('aesthetics-fab');
-    if (!p || !fab) return;
-    if (!p.contains(e.target) && !fab.contains(e.target)) p.classList.remove('open');
-  });
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
-  else build();
-})();
-</script>
 
 
 <!-- ╭───── NIGHT MODE + FUNNY ANALYTICS + 1H BLOCK ─────╮ -->
@@ -6447,7 +6268,6 @@ body[data-font="rounded"] { font-family:'Hind Siliguri', 'Quicksand', 'Nunito', 
 body.night-mode {
   filter: saturate(0.85) brightness(0.92);
 }
-body.night-mode #aesthetics-fab,
 body.night-mode .send-btn,
 body.night-mode .header,
 body.night-mode #msg-input {
@@ -6476,18 +6296,6 @@ body.night-mode #fx-bg { opacity: 0.55; }
   pointer-events: none; font-family: inherit;
 }
 body.night-mode #night-badge { opacity: 1; transform: translateY(0); }
-
-/* Aesthetics panel extras */
-#aes-tools { display:flex; flex-direction:column; gap:8px; }
-.aes-tool-btn {
-  background: linear-gradient(135deg, rgba(90,42,158,.25), rgba(40,20,90,.25));
-  border: 1px solid rgba(170,130,255,.25);
-  color: #e0d8ff; padding: 9px 12px; border-radius: 12px;
-  font-size: 13px; cursor: pointer; text-align: left;
-  display:flex; align-items:center; gap:8px; transition: all .2s;
-}
-.aes-tool-btn:hover { transform: translateY(-1px); border-color: rgba(170,130,255,.55); }
-.aes-tool-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Stats modal */
 #stats-modal {
@@ -6634,38 +6442,22 @@ body.night-mode #night-badge { opacity: 1; transform: translateY(0); }
           window.sendSystemMsg(`🚫 ${myName} ${otherName} কে 1 ঘণ্টার জন্য block করেছে`);
       }
       updateBlockBtn();
-      document.getElementById('aesthetics-panel').classList.remove('open');
     } catch(e){ alert('Error: '+(e.message||e)); }
   };
 
-  // block button label update
+  // block button label update (dot-menu item)
   function updateBlockBtn(){
-    const btn = document.getElementById('aes-block-btn');
-    if (!btn) return;
+    const label = document.getElementById('dot-block-label');
+    if (!label) return;
     const other = window.myRole === 'A' ? 'B' : 'A';
     const rd = window.__restrictData;
     const isBlocked = rd && rd.target === other && rd.until > Date.now();
-    btn.textContent = isBlocked ? '🔓 Unblock other' : '🚫 Block other (1h)';
-    btn.style.background = isBlocked ? 'rgba(40,160,80,0.2)' : '';
+    label.textContent = isBlocked ? 'Unblock other' : 'Block other (1h)';
+    const item = document.getElementById('dot-block-btn');
+    if (item) item.querySelector('.dot-item-icon').textContent = isBlocked ? '🔓' : '🚫';
   }
   window.__updateBlockBtn = updateBlockBtn;
   setInterval(updateBlockBtn, 2000);
-
-  // ── 4) Inject tools into the existing aesthetics panel ──
-  function addTools(){
-    const panel = document.getElementById('aesthetics-panel');
-    if (!panel || panel.querySelector('#aes-tools')) return;
-    const h = document.createElement('h4'); h.textContent = '🛠 Tools';
-    const wrap = document.createElement('div'); wrap.id = 'aes-tools';
-    wrap.innerHTML = `
-      <button class="aes-tool-btn" onclick="showFunnyStats()">📊 Funny analytics</button>
-      <button class="aes-tool-btn" id="aes-block-btn" onclick="blockOtherFor1h()">🚫 Block other (1h)</button>
-    `;
-    panel.appendChild(h);
-    panel.appendChild(wrap);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addTools);
-  else addTools();
 })();
 </script>
 <!-- ╰─────────────────────────────────────────────────────╯ -->
