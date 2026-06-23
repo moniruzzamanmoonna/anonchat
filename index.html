@@ -123,12 +123,41 @@
     -webkit-background-clip:text; -webkit-text-fill-color:transparent;
     background-clip:text; margin-bottom:16px;
   }
-  .role-milestone-wrap { margin-bottom:24px; min-height:28px; display:flex; align-items:center; }
+  .role-milestone-wrap { margin-bottom:24px; min-height:28px; display:flex; align-items:center; justify-content:center; position:relative; }
   #chat-milestone {
     font-size:13px; color:#ffaa55; letter-spacing:0.5px;
     background:rgba(255,160,60,0.12); border:1px solid rgba(255,160,60,0.3);
     border-radius:20px; padding:5px 16px;
+    display:flex; align-items:center; gap:6px; position:relative;
   }
+  #chat-milestone .ms-label { white-space:nowrap; }
+  #chat-milestone .ms-digits { display:inline-flex; }
+  #chat-milestone .ms-digit-cell {
+    position:relative; display:inline-block; width:0.62em; height:1.2em; overflow:hidden;
+    font-variant-numeric:tabular-nums;
+  }
+  #chat-milestone .ms-digit-cell.comma { width:0.3em; overflow:visible; }
+  #chat-milestone .ms-digit-strip {
+    position:absolute; left:0; top:0; display:flex; flex-direction:column;
+    transition:transform 0.5s cubic-bezier(0.22,1,0.36,1);
+  }
+  #chat-milestone .ms-digit-strip span { height:1.2em; display:flex; align-items:center; justify-content:center; }
+  #chat-milestone .ms-delta {
+    position:absolute; top:-26px; left:50%; transform:translateX(-50%);
+    color:#ff4444; font-weight:700; font-size:13px; white-space:nowrap;
+    opacity:0; pointer-events:none;
+  }
+  #chat-milestone .ms-delta.show {
+    animation: ms-delta-pop 1.4s ease-out forwards;
+  }
+  @keyframes ms-delta-pop {
+    0%   { opacity:0; transform:translateX(-50%) translateY(6px) scale(0.8); }
+    15%  { opacity:1; transform:translateX(-50%) translateY(-4px) scale(1.05); }
+    30%  { opacity:1; transform:translateX(-50%) translateY(-8px) scale(1); }
+    100% { opacity:0; transform:translateX(-50%) translateY(-22px) scale(0.95); }
+  }
+  #chat-milestone.bump { animation: ms-bump 0.4s ease; }
+  @keyframes ms-bump { 0%,100%{transform:scale(1)} 40%{transform:scale(1.06)} }
   /* Role cards */
   .role-buttons { display:flex; gap:14px; margin-bottom:20px; width:100%; max-width:340px; }
   .role-btn {
@@ -1808,23 +1837,74 @@ onValue(notesRef, snap => {
     else if (total >= 5000) emoji = '✨';
     else if (total >= 1000) emoji = '💫';
 
-    // Animated counter
-    const duration = 3000;
-    const start = Math.max(0, Math.floor(total * 0.1));
-    const startTime = performance.now();
+    // ── Odometer-style digit roll counter ──
+    const STRIP = "0123456789"; // strip of digits 0-9 stacked vertically
+    el.innerHTML = `<span class="ms-label">${emoji}</span><span class="ms-digits" id="ms-digits"></span><span class="ms-label">টি chat সম্পন্ন!</span><span class="ms-delta" id="ms-delta"></span>`;
+    const digitsWrap = document.getElementById('ms-digits');
+    const deltaEl = document.getElementById('ms-delta');
 
-    function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
-
-    function animate(now) {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const current = Math.floor(start + (total - start) * easeOut(progress));
-      el.textContent = `${emoji} ${current.toLocaleString('bn-BD')} টি chat সম্পন্ন!`;
-      if (progress < 1) requestAnimationFrame(animate);
-      else el.textContent = `${emoji} ${total.toLocaleString('bn-BD')} টি chat সম্পন্ন!`;
+    function formatGroups(n) {
+      // বাংলা সংখ্যায় কনভার্ট না করে এখানে কমা সহ গ্রুপিং করছি (odometer digit-by-digit এর জন্য সহজ)
+      return n.toLocaleString('en-US');
     }
 
-    requestAnimationFrame(animate);
+    function buildCells(str) {
+      digitsWrap.innerHTML = '';
+      const cells = [];
+      for (const ch of str) {
+        if (ch === ',') {
+          const c = document.createElement('span');
+          c.className = 'ms-digit-cell comma';
+          c.textContent = ',';
+          digitsWrap.appendChild(c);
+          cells.push(null);
+        } else {
+          const cell = document.createElement('span');
+          cell.className = 'ms-digit-cell';
+          const strip = document.createElement('span');
+          strip.className = 'ms-digit-strip';
+          strip.innerHTML = STRIP.split('').map(d => `<span>${d}</span>`).join('');
+          cell.appendChild(strip);
+          digitsWrap.appendChild(cell);
+          cells.push(strip);
+        }
+      }
+      return cells;
+    }
+
+    function setDigits(cells, str) {
+      let i = 0;
+      for (const ch of str) {
+        if (ch === ',') { i++; continue; }
+        const strip = cells[i];
+        if (strip) strip.style.transform = `translateY(-${Number(ch) * 1.2}em)`;
+        i++;
+      }
+    }
+
+    const finalStr = formatGroups(total);
+    const cells = buildCells(finalStr);
+    // শুরুতে সব 0 থেকে শুরু করো
+    setDigits(cells, finalStr.replace(/[0-9]/g, '0'));
+
+    // অল্প delay পরে আসল digit এ roll করাও (CSS transition দেখা যাবে)
+    setTimeout(() => {
+      setDigits(cells, finalStr);
+      el.classList.add('bump');
+      setTimeout(() => el.classList.remove('bump'), 400);
+    }, 200);
+
+    // ── Delta popup (+N) যদি আগের visit থেকে count বেড়ে থাকে ──
+    try {
+      const prevTotal = parseInt(localStorage.getItem('ac_milestone_prev') || '0', 10);
+      const delta = total - prevTotal;
+      if (prevTotal > 0 && delta > 0) {
+        deltaEl.textContent = `+${delta.toLocaleString('en-US')}`;
+        setTimeout(() => deltaEl.classList.add('show'), 250);
+        setTimeout(() => deltaEl.classList.remove('show'), 1700);
+      }
+      localStorage.setItem('ac_milestone_prev', String(total));
+    } catch(e) {}
   } catch(e) {}
 })();
 
