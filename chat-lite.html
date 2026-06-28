@@ -387,7 +387,12 @@ function startPresence(){
 // ── GHOST ONLINE DETECTOR ──
 // presence এ online:true দেখাচ্ছে কিন্তু page আসলে hidden/background এ আছে —
 // এই অবস্থা ২ সেকেন্ডের বেশি চললে নিজেকে Telegram এ একবার alert পাঠাবে।
-let _ghostState='idle'; // idle | waiting | sent
+// নোট: local timer/flag ব্যবহার করা হয়নি কারণ ব্রাউজার background এ থাকলে
+// setTimeout/setInterval throttle হয়ে যায় (mobile Chrome এ প্রায়ই ৬০s এ আটকে যায়),
+// যার ফলে local state বারবার রিসেট হয়ে duplicate alert পাঠাতো।
+// তাই Firebase এ lock রাখা হচ্ছে যা throttling এ প্রভাবিত হয় না।
+const ghostLockRef = ref(db, 'ghostOnlineLock');
+let _ghostChecking=false;
 function checkGhostOnline(){
   const myP=(presData[role])||{};
   const reportedOnline = myP.online===true && (Date.now()-Number(myP.last||0))<10000;
@@ -395,26 +400,27 @@ function checkGhostOnline(){
   const isGhost = reportedOnline && actuallyHidden;
 
   if(!isGhost){
-    // ghost অবস্থা কেটে গেছে — সব রিসেট করো যাতে পরের বার নতুন করে ধরতে পারে
     if(_ghostTimer){ clearTimeout(_ghostTimer); _ghostTimer=null; }
-    _ghostState='idle';
     return;
   }
-
-  // ghost অবস্থা চলছে — কিন্তু আগেই timer চলছে বা alert পাঠানো হয়ে গেছে থাকলে কিছু করার নেই
-  if(_ghostState!=='idle') return;
-
-  _ghostState='waiting';
-  _ghostTimer=setTimeout(()=>{
+  if(_ghostTimer) return; // ইতিমধ্যে একটা wait চলছে
+  _ghostTimer=setTimeout(async()=>{
     _ghostTimer=null;
     const p=(presData[role])||{};
-    const stillReportedOnline = p.online===true && (Date.now()-Number(p.last||0))<10000;
-    if(document.hidden && stillReportedOnline){
-      _ghostState='sent';
-      sendGhostOnlineAlert();
-    }else{
-      _ghostState='idle';
-    }
+    const stillGhost = document.hidden && p.online===true && (Date.now()-Number(p.last||0))<10000;
+    if(!stillGhost) return;
+    if(_ghostChecking) return;
+    _ghostChecking=true;
+    try{
+      // Firebase এ atomic check — এই same ghost-period এ আগেই alert গেছে কিনা দেখো
+      const snap=await get(ghostLockRef);
+      const lock=snap.exists()?snap.val():null;
+      const myKey=`${role}_${myP.last}`;
+      if(lock && lock[role]===myKey){ _ghostChecking=false; return; } // আগেই পাঠানো হয়েছে এই period এ
+      await update(ghostLockRef,{[role]:myKey});
+      await sendGhostOnlineAlert();
+    }catch(e){console.error('ghost lock error:',e);}
+    _ghostChecking=false;
   },2000);
 }
 
@@ -1044,7 +1050,6 @@ $('back-btn').onclick=()=>{
   unsubs.forEach(u=>u()); unsubs=[];
   clearInterval(presTimer);
   if(_ghostTimer){ clearTimeout(_ghostTimer); _ghostTimer=null; }
-  _ghostState='idle';
   clearInterval(headerTimer);
   clearTimeout(typingTimer);
   document.removeEventListener('visibilitychange',_visHandler);
