@@ -296,6 +296,7 @@ let cooldownUntil=0;
 let presData={}, emergDismissTs=0;
 let unsubs=[], presTimer, headerTimer, typingTimer;
 let _visHandler, _focusHandler, _pagesHandler;
+let _ghostTimer=null, _ghostAlertSent=false;
 
 function $(id){return document.getElementById(id);}
 function show(id){$(id).classList.add('active');}
@@ -372,14 +373,51 @@ function startPresence(){
   setInterval(()=>{ updateHeader(); renderSeenTime(); },1000);
   setInterval(()=>{ checkLongOffline(); },60000); // 6h+ offline check — heavy না হওয়ার জন্য 1 মিনিটে একবার
   // named handlers — back button এ remove করা যাবে
-  _visHandler=()=>{ if(!document.hidden) ping(); };
+  _visHandler=()=>{ if(!document.hidden) ping(); checkGhostOnline(); };
   _focusHandler=()=>{ ping(); };
   _pagesHandler=()=>{ ping(); };
   document.addEventListener('visibilitychange',_visHandler);
   window.addEventListener('focus',_focusHandler);
   window.addEventListener('pageshow',_pagesHandler);
   $('msg-input').addEventListener('input',()=>{ ping(true); clearTimeout(typingTimer); typingTimer=setTimeout(()=>ping(false),3000); });
-  unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); }));
+  unsubs.push(onValue(presRef,s=>{ presData=s.val()||{}; updateHeader(); checkGhostOnline(); }));
+  checkGhostOnline();
+}
+
+// ── GHOST ONLINE DETECTOR ──
+// presence এ online:true দেখাচ্ছে কিন্তু page আসলে hidden/background এ আছে —
+// এই অবস্থা ২ সেকেন্ডের বেশি চললে নিজেকে Telegram এ alert পাঠাবে।
+function checkGhostOnline(){
+  const myP=(presData[role])||{};
+  const reportedOnline = myP.online===true && (Date.now()-Number(myP.last||0))<10000;
+  const actuallyHidden = document.hidden;
+  if(reportedOnline && actuallyHidden){
+    if(!_ghostTimer){
+      _ghostAlertSent=false;
+      _ghostTimer=setTimeout(()=>{
+        if(document.hidden && !_ghostAlertSent){
+          _ghostAlertSent=true;
+          sendGhostOnlineAlert();
+        }
+        _ghostTimer=null;
+      },2000);
+    }
+  } else {
+    if(_ghostTimer){ clearTimeout(_ghostTimer); _ghostTimer=null; }
+    _ghostAlertSent=false;
+  }
+}
+
+async function sendGhostOnlineAlert(){
+  const myChatId=TG_CHAT_IDS[role];
+  if(!myChatId) return;
+  try{
+    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:myChatId,text:"যা পাঠাবে এখানে",reply_markup:TG_OPEN_CHAT_BTN})
+    });
+  }catch(e){console.error('ghost online alert error:',e);}
 }
 
 function updateHeader(){
