@@ -370,7 +370,6 @@ function startPresence(){
   headerTimer=setInterval(()=>{ updateHeader(); },30000);
   // immediate 1s tick for header only
   setInterval(()=>{ updateHeader(); renderSeenTime(); },1000);
-  setInterval(()=>{ checkLongOffline(); },60000); // 6h+ offline check — heavy না হওয়ার জন্য 1 মিনিটে একবার
   // named handlers — back button এ remove করা যাবে
   _visHandler=()=>{ if(!document.hidden) ping(); };
   _focusHandler=()=>{ ping(); };
@@ -653,40 +652,6 @@ async function doSend(){
     startCooldown(); return;
   }
   $('send-btn').disabled=false;
-}
-
-// ── 6+ HOUR OFFLINE ALERT ── (daily summary বন্ধ করা হয়েছে)
-// অপরজন 6 ঘণ্টার বেশি offline থাকলে — যেকেউ app খোলা থাকলে — একবার alert পাঠাবে
-const offlineAlertRef = ref(db, 'offlineAlertLastSent');
-let _offlineChecking = false;
-async function checkLongOffline(){
-  if(_offlineChecking) return;
-  _offlineChecking=true;
-  try{
-    const other=role==='A'?'B':'A';
-    const otherP=presData[other]||{};
-    if(!otherP.last) { _offlineChecking=false; return; }
-    const diff=Date.now()-Number(otherP.last);
-    const SIX_HOURS=6*60*60*1000;
-    if(diff<SIX_HOURS){ _offlineChecking=false; return; }
-    // ইতিমধ্যে এই offline period এ alert পাঠানো হয়েছে কিনা চেক করো (otherP.last এর সাথে মিলিয়ে)
-    const snap=await get(offlineAlertRef);
-    const lastAlertKey=snap.exists()?snap.val():null;
-    const thisKey=`${other}_${otherP.last}`; // একই last-seen timestamp এর জন্য একবারই পাঠাবে
-    if(lastAlertKey===thisKey){ _offlineChecking=false; return; }
-    await set(offlineAlertRef, thisKey);
-    const otherName=nicks[other]||(other==='A'?'Star':'Moon');
-    const h=Math.floor(diff/3600000);
-    const myChatId=TG_CHAT_IDS[role];
-    if(myChatId){
-      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({chat_id:myChatId,text:`⏳ ${otherName} প্রায় ${h} ঘণ্টা ধরে অফলাইন।`,reply_markup:TG_OPEN_CHAT_BTN})
-      }).catch(()=>{});
-    }
-  }catch(e){console.error('offline alert error:',e);}
-  _offlineChecking=false;
 }
 
 async function sendBannedAlert(txt,hitWords){
