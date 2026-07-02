@@ -223,6 +223,16 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
     <div id="bword-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
   </div>
   <div class="ssec">
+    <div class="slbl">⏳ RESTRICTION DURATION</div>
+    <div style="font-size:11px;color:var(--sub);margin-bottom:8px;">Restricted word ব্যবহার করলে কতক্ষণ পাঠানো বন্ধ থাকবে</div>
+    <div class="tgrid" id="cooldown-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+      <div class="topt" data-cooldown="4">4s</div>
+      <div class="topt" data-cooldown="6">6s</div>
+      <div class="topt" data-cooldown="8">8s</div>
+      <div class="topt" data-cooldown="10">10s</div>
+    </div>
+  </div>
+  <div class="ssec">
     <div class="slbl">🆘 EMERGENCY TOPIC (ntfy)</div>
     <div style="font-size:11px;color:var(--sub);margin-bottom:6px;">তোমার ntfy topic name</div>
     <div style="display:flex;gap:8px;">
@@ -248,6 +258,7 @@ input.code{background:var(--ibg);border:1px solid var(--brd);border-radius:14px;
 </div>
 
 <div id="toast"></div>
+<div id="net-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;text-align:center;padding:10px 16px;font-size:13px;font-weight:600;letter-spacing:.3px;">⚠️ নেটওয়ার্ক সংযোগ নেই — মেসেজ যাচ্ছে না</div>
 <div id="upload-bar">
   <span>📤 Uploading...</span>
   <div id="upload-track"><div id="upload-train"></div></div>
@@ -286,7 +297,7 @@ const CLOUD="djado1b65", PRESET="voiceee";
 
 const app=initializeApp(FB), db=getDatabase(app);
 const msgsRef=ref(db,"messages"), liteMsgsRef=ref(db,"chat_lite/messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
-const bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics");
+const bwRef=ref(db,"bannedWords"), emergRef=ref(db,"emergency"), topicRef=ref(db,"ntfyTopics"), cooldownRef=ref(db,"cooldownSeconds");
 
 const serverNow = () => Date.now() + (window.__serverTimeOffset || 0);
 
@@ -348,7 +359,8 @@ function init(){
   startPresence();
   unsubs.push(onValue(nickRef,s=>{ const d=s.val()||{}; nicks.A=d.A||'Star'; nicks.B=d.B||'Moon'; updateHeader(); refreshNickInputs(); }));
   unsubs.push(onValue(bwRef,s=>{ bwords=Object.values(s.val()||{}); renderBwords(); }));
-  unsubs.push(onValue(query(msgsRef,limitToLast(50)),s=>{
+  unsubs.push(onValue(cooldownRef,s=>{ const v=s.val(); if(v) applyCooldownUI(Number(v)); }));
+  unsubs.push(onValue(query(msgsRef,limitToLast(30)),s=>{
     msgs=[]; s.forEach(c=>{ const v=c.val(); if(v.system||v.role==='system') return; msgs.push({id:c.key,...v}); });
     renderMsgs(); markSeen();
   }));
@@ -573,12 +585,27 @@ function markSeen(){
 // ── TELEGRAM PUSH NOTIFICATION ──
 const TG_BOT_TOKEN='8678683280:AAHf2IfUNAXVAbF4Pe3z36O6urX50E7EQoo';
 const TG_CHAT_IDS={A:'7238621151',B:'8668368602'}; // A=Star, B=Moon
+const TG_BACKUP_CHAT='-1004393999105'; // Anon Chat Gallery — ছবি backup
 const CHAT_URL='https://moniruzzamanmoonna.github.io/anonchat/chat-lite.html';
 const TG_OPEN_CHAT_BTN={inline_keyboard:[[{text:'💬 Open Chat',url:CHAT_URL}]]};
 let _ntfyTimer=null;
 async function sendNtfy(msgText){
   if(_ntfyTimer) clearTimeout(_ntfyTimer);
   _ntfyTimer=setTimeout(()=>_doSendNtfy(msgText),800);
+}
+
+// ── PHOTO BACKUP ──
+// যেকেউ ছবি পাঠালে Anon Chat Gallery তে automatically save হবে
+async function backupPhotoToGallery(photoUrl, caption){
+  const myName=nicks[role]||(role==='A'?'Star':'Moon');
+  const now=new Date();
+  const dateStr=`${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const cap=`📷 ${myName}${caption?' — '+caption:''}\n🕐 ${dateStr}`;
+  await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chat_id:TG_BACKUP_CHAT, photo:photoUrl, caption:cap})
+  });
 }
 async function _doSendNtfy(msgText){
   const other=role==='A'?'B':'A';
@@ -619,6 +646,14 @@ $('msg-input').addEventListener('input',function(){
 $('msg-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}});
 $('send-btn').onclick=doSend;
 
+// ── NETWORK MONITOR ──
+// Firebase .info/connected — realtime connection status
+const connectedRef = ref(db, '.info/connected');
+onValue(connectedRef, s => {
+  const online = s.val() === true;
+  $('net-banner').style.display = online ? 'none' : 'block';
+});
+
 async function doSend(){
   const txt=$('msg-input').value.trim(); if(!txt) return;
   if(Date.now()<cooldownUntil){
@@ -640,15 +675,22 @@ async function doSend(){
   if(hasBanned) m.bannedWords=hitWords;
   if(replyTo) m.replyTo=String(replyTo.ts||replyTo.id);
   clearReply(); $('msg-input').value=''; $('msg-input').style.height='auto';
-  ping(); // message পাঠানোর সাথে সাথে presence update
-  await push(msgsRef,m);
+  ping();
+  try{
+    await push(msgsRef,m);
+  }catch(e){
+    // send ব্যর্থ হলে input ফিরিয়ে দাও যাতে user আবার পাঠাতে পারে
+    $('msg-input').value=txt;
+    toast('❌ পাঠানো যায়নি — নেটওয়ার্ক চেক করো');
+    return;
+  }
   if(!hasBanned){
     sendNtfy(txt).catch(()=>{});
   }else{
     sendBannedAlert(txt,hitWords).catch(()=>{});
   }
   if(hasBanned){
-    await push(msgsRef,{role:'system',text:`⚠️ ${nicks[role]||role} restricted word ব্যবহার করেছে — 5s নিষিদ্ধ!`,ts:Date.now(),system:true}).catch(()=>{});
+    await push(msgsRef,{role:'system',text:`⚠️ ${nicks[role]||role} restricted word ব্যবহার করেছে — ${cooldownSeconds}s নিষিদ্ধ!`,ts:Date.now(),system:true}).catch(()=>{});
     startCooldown(); return;
   }
   $('send-btn').disabled=false;
@@ -672,7 +714,7 @@ async function sendBannedAlert(txt,hitWords){
 }
 
 function startCooldown(){
-  cooldownUntil=Date.now()+5000;
+  cooldownUntil=Date.now()+cooldownSeconds*1000;
   $('send-btn').disabled=true;
   const t=setInterval(()=>{
     const rem=Math.ceil((cooldownUntil-Date.now())/1000);
@@ -719,6 +761,7 @@ $('preview-send').onclick=async()=>{
     await push(msgsRef,{role,text:txt,ts:Date.now(),delivered:true,replyTo:replyTo?String(replyTo.ts||replyTo.id):''});
     clearReply();
     sendNtfy(txt).catch(()=>{});
+    backupPhotoToGallery(d.secure_url, caption).catch(()=>{});
     toast('✅ Photo sent!');
   }catch(e){toast('❌ Upload failed');}
   $('upload-bar').classList.remove('show');
@@ -846,11 +889,23 @@ $('save-other-nick').onclick=async()=>{
 };
 
 // Theme
-document.querySelectorAll('.topt').forEach(el=>el.addEventListener('click',()=>{ applyTheme(el.dataset.theme); localStorage.setItem('lite_theme',el.dataset.theme); }));
+document.querySelectorAll('.topt[data-theme]').forEach(el=>el.addEventListener('click',()=>{ applyTheme(el.dataset.theme); localStorage.setItem('lite_theme',el.dataset.theme); }));
 function applyTheme(t){
   theme=t; document.body.className=t==='dark'?'':`theme-${t}`;
-  document.querySelectorAll('.topt').forEach(el=>el.classList.toggle('active',el.dataset.theme===t));
+  document.querySelectorAll('.topt[data-theme]').forEach(el=>el.classList.toggle('active',el.dataset.theme===t));
 }
+
+// Restriction (cooldown) duration — Firebase-এ শেয়ার্ড, দুজনের জন্যই প্রযোজ্য
+let cooldownSeconds = 6; // default, Firebase থেকে actual value আসবে
+function applyCooldownUI(sec){
+  cooldownSeconds=sec;
+  document.querySelectorAll('.topt[data-cooldown]').forEach(el=>el.classList.toggle('active',parseInt(el.dataset.cooldown)===sec));
+}
+document.querySelectorAll('.topt[data-cooldown]').forEach(el=>el.addEventListener('click',()=>{
+  const sec=parseInt(el.dataset.cooldown);
+  applyCooldownUI(sec); // তাৎক্ষণিক নিজের UI আপডেট
+  set(cooldownRef, sec).catch(()=>{}); // Firebase এ লিখে দুজনের জন্যই sync
+}));
 
 // Banned words
 function renderBwords(){
