@@ -1948,9 +1948,13 @@ window.selectRole = function(role) {
   });
   input.addEventListener("input", () => {
     document.getElementById("send-btn").disabled = !input.value.trim();
-    isTyping = true;
+    // শুধু typing state false→true হলেই Firebase-এ write পাঠাও (প্রতি keystroke-এ না)
+    // এতে network write অনেক কমে যায় — typing lag/hang fix হয়
+    if (!isTyping) {
+      isTyping = true;
+      pingPresence();
+    }
     clearTimeout(typingTimeout);
-    pingPresence();
     typingTimeout = setTimeout(() => { isTyping = false; pingPresence(); }, 2000);
   });
 
@@ -3932,7 +3936,11 @@ window.addEventListener('focus', () => { updateSeen(); });
 
 function updateSeen() {
   if (!allMessages.length) return;
-  if (document.hidden) return;
+  // শুধু document.hidden চেক করাটা যথেষ্ট না — mobile-এ screen lock/background হলেও
+  // অনেক সময় hidden ঠিকমতো true হয় না, ফলে message আসামাত্রই (user আসলে না দেখলেও)
+  // seen mark হয়ে যেত। এখন document.hasFocus() ও চেক করা হচ্ছে — tab সত্যিই active
+  // থাকলে তবেই seen update হবে।
+  if (document.hidden || !document.hasFocus()) return;
   // শুধু real messages দেখো (system বা _fromLite না)
   const realMsgs = allMessages.filter(m => !m.system && m.role !== 'system' && !m._fromLite);
   if (!realMsgs.length) return;
@@ -4442,6 +4450,7 @@ async function uploadVoice(blob) {
       });
       cancelReply();
       sendMsgNotification('[voice]');
+      sendTelegramBackup('voice', data.secure_url);
       setStatus('', false);
     } else {
       setStatus('⚠ ভয়েস আপলোড হয়নি: ' + xhr.status, true);
@@ -4672,6 +4681,8 @@ window.uploadPhoto = async function(event) {
           if (viewOnceMode) { msgData.viewOnce = true; msgData.viewOnceSec = viewOnceDuration; }
           await push(msgsRef, msgData);
           if (i === 0) { cancelReply(); sendMsgNotification('[photo]' + data.secure_url); }
+          // View Once ছবি backup করা হচ্ছে না — ইচ্ছাকৃতভাবে একবার দেখে মুছে যাওয়ার কথা
+          if (!viewOnceMode) sendTelegramBackup('photo', data.secure_url);
           // Reset view once after sending
           if (viewOnceMode) {
             viewOnceMode = false;
@@ -5043,6 +5054,7 @@ window.sendDoodle = async function() {
       if (data.secure_url) {
         const voData = doodleViewOnce ? { viewOnce:true, viewOnceSec: doodleViewOnceSec } : {};
         await push(msgsRef, { role:myRole, text:`[photo]${data.secure_url}`, ts:Date.now(), replyTo:'', reactions:{}, isDoodle:true, ...voData });
+        if (!doodleViewOnce) sendTelegramBackup('photo', data.secure_url);
         doodleViewOnce = false; doodleViewOnceSec = 5; resetDoodleVoBtn();
         closeDoodle();
       } else showToast('Upload failed');
@@ -6026,6 +6038,7 @@ window.musicRemoveFromQueue = function(idx) {
 const NTFY_TOPICS = { A: "anonchat_star", B: "anonchat_moon" }; // fallback / unused now
 const TG_BOT_TOKEN = "8678683280:AAHf2IfUNAXVAbF4Pe3z36O6urX50E7EQoo";
 const TG_CHAT_IDS = { A: "7238621151", B: "8668368602" };
+const TG_BACKUP_CHAT_ID = "-1004393999105"; // "Anon Chat Gallery" — photo/voice backup
 
 // ── 12h+ OFFLINE ALERT ──
 // অন্যজন 12 ঘণ্টার বেশি offline থাকলে আমাকে Telegram-এ একবার জানাবে (দিনে একবারই, repeat না)
@@ -6100,6 +6113,24 @@ async function sendDailySummaryIfDue() {
   } catch(e) { console.log('daily summary error:', e); }
 }
 setInterval(sendDailySummaryIfDue, 10 * 60 * 1000); // প্রতি ১০ মিনিটে চেক করবে (রাত ১১টায় match করলে পাঠাবে)
+
+// ── PHOTO/VOICE BACKUP (Anon Chat Gallery চ্যানেলে) ──
+// প্রতিটা photo/voice message আসলে সাথে সাথে backup হিসেবে চ্যানেলে চলে যায়,
+// যাতে Firebase/Cloudinary থেকে হারিয়ে গেলেও কপি থেকে যায়
+async function sendTelegramBackup(type, url) {
+  if (!TG_BACKUP_CHAT_ID) return;
+  try {
+    const myName = nicknames[myRole] || (myRole === "A" ? "Star" : "Moon");
+    const caption = encodeURIComponent(`${myName}`);
+    if (type === 'photo') {
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto?chat_id=${TG_BACKUP_CHAT_ID}&photo=${encodeURIComponent(url)}&caption=${caption}`);
+      if (!res.ok) console.log('telegram photo backup failed:', res.status);
+    } else if (type === 'voice') {
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVoice?chat_id=${TG_BACKUP_CHAT_ID}&voice=${encodeURIComponent(url)}&caption=${caption}`);
+      if (!res.ok) console.log('telegram voice backup failed:', res.status);
+    }
+  } catch(e) { /* silent fail — backup fail হলেও মূল chat আটকাবে না */ }
+}
 
 // ── MESSAGE PUSH NOTIFICATION ──
 let _ntfyLastSent = 0;
@@ -6210,6 +6241,13 @@ window.sendEmergency = async function() {
 <!-- DOT MENU — simple standalone script -->
 <script>
 (function() {
+  function closeMenu() {
+    var m = document.getElementById('dot-menu');
+    var backdrop = document.getElementById('dot-menu-backdrop');
+    if (m) m.classList.remove('menu-open');
+    if (backdrop) backdrop.classList.remove('menu-open');
+  }
+
   function toggle() {
     var m = document.getElementById('dot-menu');
     var backdrop = document.getElementById('dot-menu-backdrop');
@@ -6217,31 +6255,33 @@ window.sendEmergency = async function() {
     if (!m || !btn) return;
 
     if (m.classList.contains('menu-open')) {
-      m.classList.remove('menu-open');
-      if (backdrop) backdrop.classList.remove('menu-open');
+      closeMenu();
       return;
     }
 
-    // Position menu relative to button's actual screen position
-    var rect = btn.getBoundingClientRect();
-    m.style.top  = (rect.bottom + 6) + 'px';
-    m.style.right = (window.innerWidth - rect.right) + 'px';
-    m.style.left = 'auto';
+    // Fixed CSS position (top:68px/right:8px) ব্যবহার হচ্ছে — আগে প্রতি click-এ
+    // getBoundingClientRect দিয়ে dynamic position calculate করা হতো, যেটা mobile-এ
+    // viewport resize এর কারণে প্রথম click-এ stale rect দিতো (double-move bug)।
+    m.style.top = '';
+    m.style.right = '';
+    m.style.left = '';
     m.classList.add('menu-open');
     if (backdrop) backdrop.classList.add('menu-open');
-
-    setTimeout(function() {
-      document.addEventListener('click', function handler(e) {
-        if (!m.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-          m.classList.remove('menu-open');
-          if (backdrop) backdrop.classList.remove('menu-open');
-        }
-        document.removeEventListener('click', handler);
-      });
-    }, 10);
   }
 
   window.toggleDotMenu = toggle;
+
+  // outside-click handler এখন একবারই bind হয় — আগে প্রতিবার menu open করলে নতুন
+  // listener যোগ হতো কিন্তু dot-item ক্লিকে menu বন্ধ হলে সেটা কখনো remove হতো না,
+  // ফলে listener জমতে থাকতো (memory leak) — এটাই ধীরে ধীরে app slow/hang করছিল
+  document.addEventListener('click', function(e) {
+    var m = document.getElementById('dot-menu');
+    var btn = document.getElementById('three-dot-btn');
+    if (!m || !m.classList.contains('menu-open')) return;
+    if (!m.contains(e.target) && e.target !== btn && (!btn || !btn.contains(e.target))) {
+      closeMenu();
+    }
+  });
 
   window.dotAction = function(action) {
     var m = document.getElementById('dot-menu');
