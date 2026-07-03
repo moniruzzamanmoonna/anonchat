@@ -2376,7 +2376,11 @@ function openArchiveBatch(batchKey, msgs) {
     const time = new Date(Number(msg.ts)).toLocaleTimeString('bn-BD',{hour:'2-digit',minute:'2-digit'});
     let content;
     if (msg.unsent) content = `<span style="color:#555577;font-style:italic;font-size:13px">🚫 মুছে ফেলা হয়েছে</span>`;
-    else if (msg.text && msg.text.startsWith('[photo]')) content = `<img src="${msg.text.replace('[photo]','')}" style="max-width:200px;border-radius:10px;">`;
+    else if (msg.text && msg.text.startsWith('[photo]')) {
+      const aRest = msg.text.slice(7);
+      const aNl = aRest.indexOf('\n');
+      content = `<img src="${aNl > -1 ? aRest.slice(0, aNl) : aRest}" style="max-width:200px;border-radius:10px;">`;
+    }
     else if (msg.text && msg.text.startsWith('[voice]')) content = `🎙️ Voice message`;
     else {
       let rawText = esc(msg.text || '');
@@ -4186,7 +4190,9 @@ function buildMsgHtml(msg, idx, otherSeen) {
         if (orig.unsent) {
           replyContent = `<span style="font-style:italic;opacity:0.6;">🚫 মুছে ফেলা হয়েছে</span>`;
         } else if (orig.text && orig.text.startsWith('[photo]')) {
-          const thumbUrl = orig.text.replace('[photo]','');
+          const thumbRest = orig.text.slice(7);
+          const thumbNl = thumbRest.indexOf('\n');
+          const thumbUrl = thumbNl > -1 ? thumbRest.slice(0, thumbNl) : thumbRest;
           const label = orig.isDoodle ? '🎨 Doodle' : '📷 ছবি';
           replyContent = `<div style="display:flex;align-items:center;gap:8px;"><img src="${thumbUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0;"><span>${label}</span></div>`;
         } else if (orig.text && orig.text.startsWith('[voice]')) {
@@ -4194,7 +4200,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
         } else {
           replyContent = esc(orig.text).substring(0, 60);
         }
-        replyHtml = `<div class="reply-preview" style="cursor:pointer" onclick="scrollToMsg('${orig.id}')">↩ ${replyContent}</div>`;
+        replyHtml = `<div class="reply-preview" style="cursor:pointer" onclick="scrollToMsg('${orig.id || orig.ts}')">↩ ${replyContent}</div>`;
       }
     }
 
@@ -4211,7 +4217,13 @@ function buildMsgHtml(msg, idx, otherSeen) {
     if (msg.unsent) {
       bubbleContent = `<span style="color:#555577;font-style:italic;font-size:13px">🚫 বার্তাটি মুছে ফেলা হয়েছে</span>`;
     } else if (msg.text && msg.text.startsWith('[photo]')) {
-      const url = msg.text.replace('[photo]','');
+      // chat-lite থেকে আসা ছবিতে caption থাকলে '[photo]url\ncaption' ফরম্যাটে আসে —
+      // আগে পুরো string-টাই url হিসেবে ধরা হতো, ফলে caption থাকলে img ভেঙে যেত (show হতো না)
+      const rest = msg.text.slice(7);
+      const nlIdx = rest.indexOf('\n');
+      const url = nlIdx > -1 ? rest.slice(0, nlIdx) : rest;
+      const photoCaption = nlIdx > -1 ? rest.slice(nlIdx + 1).trim() : '';
+      const captionHtml = photoCaption ? `<div style="font-size:12px;margin-top:5px;opacity:0.85;">${esc(photoCaption)}</div>` : '';
       const badge = msg.isDoodle ? `<div style="font-size:10px;color:#9977ff;margin-bottom:3px;">🎨 Doodle</div>` : '';
       if (msg.viewOnce && msg.role !== myRole) {
         // Receiver sees view-once image
@@ -4230,7 +4242,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
       } else if (msg.viewOnce && msg.role === myRole) {
         bubbleContent = `${badge}<img class="img-bubble" src="${url}" onclick="openViewOnce('${url}','${msg.ts}','${msg.viewOnceSec||5}',false)"><div style="font-size:10px;color:#9977ff;margin-top:3px;">👁️ View Once · তুমি পাঠিয়েছ</div>`;
       } else {
-        bubbleContent = `${badge}<img class="img-bubble" src="${url}" onclick="openImage('${url}')">`;
+        bubbleContent = `${badge}<img class="img-bubble" src="${url}" onclick="openImage('${url}')">${captionHtml}`;
       }
     } else if (msg.text && msg.text.startsWith('[video]')) {
       const vurl = msg.text.replace('[video]','');
@@ -4292,7 +4304,7 @@ function buildMsgHtml(msg, idx, otherSeen) {
       <span class="swipe-indicator" id="swipe-ind-${idx}">↩</span>
       ${reactHtml}
       <div class="msg-meta">
-        <span class="msg-time">${ICONS[msg.role]} ${time}</span>
+        <span class="msg-time">${ICONS[msg.role]} ${time}${msg.edited && !msg.unsent ? ' · <span style="opacity:0.65;font-style:italic;">edited</span>' : ''}</span>
         ${metaExtra}
       </div>
     </div>`;
@@ -4628,6 +4640,8 @@ window.sendMediaPreview = async function() {
         await push(msgsRef, msgData);
         cancelReply();
         sendMsgNotification(msgData.text);
+        // View Once না হলে backup পাঠাও (photo ও video দুটোই)
+        if (!vo) sendTelegramBackup(type === 'video' ? 'video' : 'photo', data.secure_url);
       } else {
         const errMsg = data.error?.message || ("Status: " + xhr.status);
         console.error("Upload failed:", errMsg, xhr.responseText);
@@ -4766,9 +4780,10 @@ window.openGallery = async function() {
 
   // Collect photos from current messages — skip viewOnce
   let photos = [];
+  const extractPhotoUrl = t => { const r = t.slice(7); const n = r.indexOf('\n'); return n > -1 ? r.slice(0, n) : r; };
   allMessages.forEach(m => {
     if (m.text && m.text.startsWith('[photo]') && !m.unsent && !m.viewOnce) {
-      photos.push({ url: m.text.replace('[photo]',''), ts: m.ts, role: m.role, isDoodle: m.isDoodle });
+      photos.push({ url: extractPhotoUrl(m.text), ts: m.ts, role: m.role, isDoodle: m.isDoodle });
     }
   });
 
@@ -4780,7 +4795,7 @@ window.openGallery = async function() {
         batchSnap.forEach(msgSnap => {
           const m = msgSnap.val();
           if (m && m.text && m.text.startsWith('[photo]') && !m.unsent && !m.viewOnce) {
-            photos.push({ url: m.text.replace('[photo]',''), ts: m.ts, role: m.role, isDoodle: m.isDoodle });
+            photos.push({ url: extractPhotoUrl(m.text), ts: m.ts, role: m.role, isDoodle: m.isDoodle });
           }
         });
       });
@@ -4855,7 +4870,9 @@ window.openDoodleOnMessage = function(msg) {
   // Render message content onto canvas as background
   const isPhoto = msg.text && msg.text.startsWith('[photo]');
   if (isPhoto) {
-    const url = msg.text.replace('[photo]','');
+    const dRest = msg.text.slice(7);
+    const dNl = dRest.indexOf('\n');
+    const url = dNl > -1 ? dRest.slice(0, dNl) : dRest;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -5156,7 +5173,9 @@ window.openPinnedPopup = function() {
 
   let contentHtml = '';
   if (isPhoto) {
-    const url = pinnedMsg.text.replace('[photo]','');
+    const pRest = pinnedMsg.text.slice(7);
+    const pNl = pRest.indexOf('\n');
+    const url = pNl > -1 ? pRest.slice(0, pNl) : pRest;
     contentHtml = `<img src="${url}" style="max-width:100%;max-height:60vh;border-radius:10px;display:block;margin:0 auto;" onclick="openImage('${url}')">`;
   } else if (isVoice) {
     const url = pinnedMsg.text.replace('[voice]','');
@@ -5213,9 +5232,9 @@ window.scrollToPinned = function() {
 window.ctxEdit = async function() {
   const m = ctxMsg; closeMenu();
   const newText = prompt("এডিট করো:", m.text);
-  if (!newText?.trim()) return;
+  if (!newText?.trim() || newText.trim() === m.text) return;
   const msgRef = ref(db, `messages/${m.key}`);
-  await update(msgRef, { text: newText.trim() }).catch(() => {});
+  await update(msgRef, { text: newText.trim(), edited: true }).catch(() => {});
 }
 
 window.ctxDelete = async function() {
@@ -5232,7 +5251,9 @@ window.ctxReply = function() {
   document.getElementById("reply-bar").style.display = "flex";
   const replyTextEl = document.getElementById("reply-text");
   if (m.text && m.text.startsWith('[photo]')) {
-    const url = m.text.replace('[photo]','');
+    const rRest = m.text.slice(7);
+    const rNl = rRest.indexOf('\n');
+    const url = rNl > -1 ? rRest.slice(0, rNl) : rRest;
     const label = m.isDoodle ? '🎨 Doodle' : '📷 ছবি';
     replyTextEl.innerHTML = `↩ <img src="${url}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;vertical-align:middle;margin:0 4px;"> ${label}`;
   } else if (m.text && m.text.startsWith('[voice]')) {
@@ -5368,7 +5389,9 @@ window.touchEnd = function(e, idx) {
         const replyTextEl = document.getElementById("reply-text");
         if (msg.img && !msg.text) msg.text = '[photo]' + msg.img;
         if (msg.text && msg.text.startsWith('[photo]')) {
-          const url = msg.text.replace('[photo]','');
+          const sRest = msg.text.slice(7);
+          const sNl = sRest.indexOf('\n');
+          const url = sNl > -1 ? sRest.slice(0, sNl) : sRest;
           const label = msg.isDoodle ? '🎨 Doodle' : '📷 ছবি';
           replyTextEl.innerHTML = `↩ <img src="${url}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;vertical-align:middle;margin:0 4px;"> ${label}`;
         } else if (msg.text && msg.text.startsWith('[video]')) {
@@ -6124,10 +6147,13 @@ async function sendTelegramBackup(type, url) {
     const caption = encodeURIComponent(`${myName}`);
     if (type === 'photo') {
       const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto?chat_id=${TG_BACKUP_CHAT_ID}&photo=${encodeURIComponent(url)}&caption=${caption}`);
-      if (!res.ok) console.log('telegram photo backup failed:', res.status);
+      if (!res.ok) console.log('telegram photo backup failed:', res.status, await res.text());
     } else if (type === 'voice') {
       const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVoice?chat_id=${TG_BACKUP_CHAT_ID}&voice=${encodeURIComponent(url)}&caption=${caption}`);
-      if (!res.ok) console.log('telegram voice backup failed:', res.status);
+      if (!res.ok) console.log('telegram voice backup failed:', res.status, await res.text());
+    } else if (type === 'video') {
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVideo?chat_id=${TG_BACKUP_CHAT_ID}&video=${encodeURIComponent(url)}&caption=${caption}`);
+      if (!res.ok) console.log('telegram video backup failed:', res.status, await res.text());
     }
   } catch(e) { /* silent fail — backup fail হলেও মূল chat আটকাবে না */ }
 }
