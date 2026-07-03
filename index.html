@@ -949,6 +949,8 @@ window.onerror = function(msg, src, line, col, err) {
       </div>
       <div id="media-preview-dim" style="font-size:11px;color:#888;text-align:right;"></div>
     </div>
+    <!-- Caption input -->
+    <textarea id="media-preview-caption" rows="2" placeholder="Caption লিখো (optional)..." style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#eee;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;resize:none;line-height:1.4;box-sizing:border-box;"></textarea>
     <!-- View Once toggle -->
     <div style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border-radius:10px;padding:10px 14px;">
       <span style="font-size:13px;color:var(--presence-text,#ccc);">👁️ View Once</span>
@@ -4523,16 +4525,16 @@ function fmtTime(s) {
 
 
 // ── MEDIA PREVIEW ────────────────────────────────────────
-let _previewFile = null;
+let _previewFiles = null;
 let _previewType = null; // 'image' | 'video'
 let _previewVO = false;
 
 window.previewMedia = function(event, type) {
-  const file = event.target.files[0];
+  const files = type === 'image' ? Array.from(event.target.files) : [event.target.files[0]].filter(Boolean);
   event.target.value = "";
-  if (!file) return;
+  if (!files.length) return;
 
-  _previewFile = file;
+  _previewFiles = files;
   _previewType = type;
   _previewVO = viewOnceMode;
 
@@ -4544,32 +4546,58 @@ window.previewMedia = function(event, type) {
   const voToggle = document.getElementById('preview-vo-toggle');
   const voTrack = document.getElementById('preview-vo-track');
   const voThumb = document.getElementById('preview-vo-thumb');
+  const captionEl = document.getElementById('media-preview-caption');
+  captionEl.value = '';
 
-  // Size
-  const bytes = file.size;
-  const sizeStr = bytes > 1048576 ? (bytes/1048576).toFixed(1) + ' MB' : (bytes/1024).toFixed(0) + ' KB';
-  nameEl.textContent = file.name;
+  const totalBytes = files.reduce((s,f) => s + f.size, 0);
+  const sizeStr = totalBytes > 1048576 ? (totalBytes/1048576).toFixed(1) + ' MB' : (totalBytes/1024).toFixed(0) + ' KB';
   sizeEl.textContent = sizeStr;
 
-  // Preview
-  const url = URL.createObjectURL(file);
-  if (type === 'image') {
-    const img = new Image();
-    img.onload = () => { dimEl.textContent = img.naturalWidth + '×' + img.naturalHeight; };
-    img.src = url;
-    container.innerHTML = `<img src="${url}" style="max-width:100%;max-height:55vh;object-fit:contain;border-radius:8px;">`;
+  if (type === 'image' && files.length > 1) {
+    // একাধিক ছবি — thumbnail grid দেখাও
+    nameEl.textContent = `${files.length}টি ছবি নির্বাচিত`;
+    dimEl.textContent = '';
+    container.style.display = 'grid';
+    container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    container.style.gap = '4px';
+    container.style.padding = '6px';
+    container.style.maxHeight = '55vh';
+    container.style.overflowY = 'auto';
+    container.innerHTML = files.map(f => {
+      const u = URL.createObjectURL(f);
+      return `<img src="${u}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;">`;
+    }).join('');
   } else {
-    container.innerHTML = `<video src="${url}" controls playsinline style="max-width:100%;max-height:55vh;border-radius:8px;"></video>`;
-    // Get video dimensions
-    const vid = container.querySelector('video');
-    vid.onloadedmetadata = () => {
-      const dur = Math.floor(vid.duration);
-      const m = Math.floor(dur/60), s = dur%60;
-      dimEl.textContent = vid.videoWidth + '×' + vid.videoHeight + ' · ' + m+':'+String(s).padStart(2,'0');
-    };
+    container.style.display = 'flex';
+    container.style.gridTemplateColumns = '';
+    container.style.padding = '0';
+    const file = files[0];
+    nameEl.textContent = file.name;
+    const url = URL.createObjectURL(file);
+    if (type === 'image') {
+      const img = new Image();
+      img.onload = () => { dimEl.textContent = img.naturalWidth + '×' + img.naturalHeight; };
+      img.src = url;
+      container.innerHTML = `<img src="${url}" style="max-width:100%;max-height:55vh;object-fit:contain;border-radius:8px;">`;
+    } else {
+      container.innerHTML = `<video src="${url}" controls playsinline style="max-width:100%;max-height:55vh;border-radius:8px;"></video>`;
+      const vid = container.querySelector('video');
+      vid.onloadedmetadata = () => {
+        const dur = Math.floor(vid.duration);
+        const m = Math.floor(dur/60), s = dur%60;
+        dimEl.textContent = vid.videoWidth + '×' + vid.videoHeight + ' · ' + m+':'+String(s).padStart(2,'0');
+      };
+    }
   }
 
-  // View once toggle state
+  // View once toggle state — একাধিক ছবিতে View Once বন্ধ রাখো (একটার জন্যই এই ফিচার মানানসই)
+  const voWrap = document.getElementById('preview-vo-toggle').parentElement.parentElement;
+  if (files.length > 1) {
+    _previewVO = false;
+    voWrap.style.display = 'none';
+  } else {
+    voWrap.style.display = 'flex';
+  }
   voToggle.checked = _previewVO;
   voTrack.style.background = _previewVO ? '#6644bb' : '#333';
   voThumb.style.left = _previewVO ? '21px' : '3px';
@@ -4589,69 +4617,80 @@ window.togglePreviewVO = function(el) {
 
 window.closeMediaPreview = function() {
   document.getElementById('media-preview-modal').style.display = 'none';
-  _previewFile = null;
+  _previewFiles = null;
 };
 
 window.sendMediaPreview = async function() {
-  if (!_previewFile) return;
-  const file = _previewFile;
+  if (!_previewFiles || !_previewFiles.length) return;
+  const files = _previewFiles;
   const type = _previewType;
   const vo = _previewVO;
+  const caption = document.getElementById('media-preview-caption').value.trim();
   document.getElementById('media-preview-modal').style.display = 'none';
-  _previewFile = null;
+  _previewFiles = null;
 
   const progressEl = document.getElementById("upload-progress");
   const progressBar = document.getElementById("upload-progress-bar");
   progressEl.style.display = "block";
-  progressBar.style.width = "5%";
 
   const endpoint = type === 'video'
     ? `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`
     : `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
   const label = type === 'video' ? 'ভিডিও' : 'ছবি';
-  setStatus(`${label} আপলোড হচ্ছে...`, false);
 
-  await new Promise((resolve) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    progressBar.style.width = "5%";
+    setStatus(files.length > 1 ? `${label} আপলোড হচ্ছে... (${i+1}/${files.length})` : `${label} আপলোড হচ্ছে...`, false);
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", endpoint);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) progressBar.style.width = ((e.loaded/e.total)*90+5) + "%";
-    };
-    xhr.onload = async () => {
-      progressBar.style.width = "100%";
-      setTimeout(() => { progressEl.style.display = "none"; progressBar.style.width = "0%"; }, 600);
-      let data;
-      try { data = JSON.parse(xhr.responseText); } catch(e) { data = {}; }
-      if (xhr.status === 200 && data.secure_url) {
-        const prefix = type === 'video' ? '[video]' : '[photo]';
-        const msgData = {
-          role: myRole,
-          text: prefix + (type==='video' && data.secure_url.includes('/upload/') ? data.secure_url.replace('/upload/', '/upload/ac_aac/') : data.secure_url),
-          ts: Date.now(),
-          replyTo: replyTo ? String(replyTo.ts) : "",
-          reactions: {}
-        };
-        if (vo) { msgData.viewOnce = true; msgData.viewOnceSec = viewOnceDuration || 5; }
-        await push(msgsRef, msgData);
-        cancelReply();
-        sendMsgNotification(msgData.text);
-        // View Once না হলে backup পাঠাও (photo ও video দুটোই)
-        if (!vo) sendTelegramBackup(type === 'video' ? 'video' : 'photo', data.secure_url);
-      } else {
-        const errMsg = data.error?.message || ("Status: " + xhr.status);
-        console.error("Upload failed:", errMsg, xhr.responseText);
-        setStatus("⚠ " + errMsg, true);
-      }
-      resolve();
-    };
-    xhr.onerror = () => { setStatus("⚠ নেটওয়ার্ক সমস্যা", true); resolve(); };
-    xhr.send(formData);
-  });
+    await new Promise((resolve) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", endpoint);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) progressBar.style.width = ((e.loaded/e.total)*90+5) + "%";
+      };
+      xhr.onload = async () => {
+        progressBar.style.width = "100%";
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch(e) { data = {}; }
+        if (xhr.status === 200 && data.secure_url) {
+          const prefix = type === 'video' ? '[video]' : '[photo]';
+          // caption শুধু photo-তে সাপোর্টেড (chat-lite এর ফরম্যাট অনুযায়ী), আর শুধু প্রথম
+          // ছবিতে জুড়ে দেওয়া হচ্ছে — একাধিক ছবি একসাথে পাঠালে caption একবারই দেখাবে
+          let bodyUrl = data.secure_url;
+          if (type === 'video' && bodyUrl.includes('/upload/')) bodyUrl = bodyUrl.replace('/upload/', '/upload/ac_aac/');
+          if (type === 'image' && i === 0 && caption) bodyUrl = `${bodyUrl}\n${caption}`;
+          const msgData = {
+            role: myRole,
+            text: prefix + bodyUrl,
+            ts: Date.now(),
+            replyTo: (i === 0 && replyTo) ? String(replyTo.ts) : "",
+            reactions: {}
+          };
+          if (vo) { msgData.viewOnce = true; msgData.viewOnceSec = viewOnceDuration || 5; }
+          await push(msgsRef, msgData);
+          if (i === 0) { cancelReply(); sendMsgNotification(msgData.text); }
+          // View Once না হলে backup পাঠাও (photo ও video দুটোই)
+          if (!vo) sendTelegramBackup(type === 'video' ? 'video' : 'photo', data.secure_url);
+        } else {
+          const errMsg = data.error?.message || ("Status: " + xhr.status);
+          console.error("Upload failed:", errMsg, xhr.responseText);
+          setStatus("⚠ " + errMsg, true);
+        }
+        resolve();
+      };
+      xhr.onerror = () => { setStatus("⚠ নেটওয়ার্ক সমস্যা", true); resolve(); };
+      xhr.send(formData);
+    });
+  }
+
+  progressEl.style.display = "none";
+  progressBar.style.width = "0%";
 };
 
 // ── UPLOAD PHOTO (Cloudinary) ─────────────────────────────
