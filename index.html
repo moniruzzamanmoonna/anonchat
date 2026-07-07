@@ -4463,17 +4463,20 @@ async function uploadVoice(blob) {
   progressBar.style.width = '10%';
   setStatus('ভয়েস পাঠানো হচ্ছে...', false);
 
-  // Cloudinary limit শেষের কাছে — voice-ও এখন সরাসরি Telegram bot-এ যায় (video-র মতো)
+  // Cloudinary limit শেষের কাছে — voice এখন Telegram-এ upload হয়, কিন্তু Telegram-এর
+  // getFile API দিয়ে ফাইলের একটা direct URL বানিয়ে সেটাই [voice] হিসেবে ব্যবহার
+  // করা হচ্ছে, যাতে আগের মতোই in-app player-এ শোনা যায় (Telegram-এ যেতে হবে না)
   const other = myRole === "A" ? "B" : "A";
   const chatId = TG_CHAT_IDS[other];
   const savedReplyTo = replyTo;
 
-  function sendVoiceTo(targetChatId, trackProgress) {
+  function sendVoiceTo(targetChatId, fileOrId, trackProgress) {
     return new Promise((res) => {
       if (!targetChatId) { res({ ok: false }); return; }
       const fd = new FormData();
       fd.append('chat_id', targetChatId);
-      fd.append('voice', blob, 'voice.webm');
+      if (typeof fileOrId === 'string') fd.append('voice', fileOrId);
+      else fd.append('voice', fileOrId, 'voice.webm');
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVoice`);
       if (trackProgress) {
@@ -4490,23 +4493,51 @@ async function uploadVoice(blob) {
     });
   }
 
-  const result = await sendVoiceTo(chatId, true);
-  progressBar.style.width = '100%';
-  progressEl.style.display = 'none';
+  async function getPlayableUrl(fileId) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getFile?file_id=${fileId}`);
+      const data = await res.json();
+      if (data.ok && data.result && data.result.file_path) {
+        return `https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${data.result.file_path}`;
+      }
+    } catch(e) { /* fall through */ }
+    return null;
+  }
+
+  const result = await sendVoiceTo(chatId, blob, true);
+  progressBar.style.width = '95%';
+
   if (result.ok) {
-    await push(msgsRef, {
-      role: myRole,
-      text: '[tgvoice]',
-      ts: Date.now(),
-      replyTo: savedReplyTo ? String(savedReplyTo.ts) : '',
-      reactions: {}
-    });
+    const fileId = result.result && result.result.voice && result.result.voice.file_id;
+    const playUrl = fileId ? await getPlayableUrl(fileId) : null;
+    progressBar.style.width = '100%';
+    progressEl.style.display = 'none';
+
+    if (playUrl) {
+      await push(msgsRef, {
+        role: myRole,
+        text: '[voice]' + playUrl,
+        ts: Date.now(),
+        replyTo: savedReplyTo ? String(savedReplyTo.ts) : '',
+        reactions: {}
+      });
+    } else {
+      // getFile fail korle o message hariye jabe na — fallback placeholder
+      await push(msgsRef, {
+        role: myRole,
+        text: '[tgvoice]',
+        ts: Date.now(),
+        replyTo: savedReplyTo ? String(savedReplyTo.ts) : '',
+        reactions: {}
+      });
+    }
     cancelReply();
     sendMsgNotification('[voice]');
-    // Backup channel-এও একটা copy পাঠাও
-    sendVoiceTo(TG_BACKUP_CHAT_ID, false);
+    // Backup channel-এ file_id দিয়েই পাঠাও (আবার আপলোড করতে হবে না)
+    if (fileId) sendVoiceTo(TG_BACKUP_CHAT_ID, fileId, false);
     setStatus('', false);
   } else {
+    progressEl.style.display = 'none';
     setStatus('⚠ ভয়েস পাঠানো যায়নি: ' + (result.description || ''), true);
   }
 }
