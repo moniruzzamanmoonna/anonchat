@@ -500,7 +500,9 @@ function renderMsgs(){
     const rep=orig?`<div class="rpreview" data-replyid="${orig.id}" style="cursor:pointer">↩ ${esc(origPreview)}</div>`:'';
     const edited=m.edited?'<span style="font-size:9px;color:var(--sub);margin-left:4px;opacity:.7">(edited)</span>':'';
     let body;
-    if(m.img){ // backward compat
+    if(m.unsent){
+      body=`<span style="color:#555577;font-style:italic;font-size:13px">🚫 বার্তাটি মুছে ফেলা হয়েছে</span>`;
+    } else if(m.img){ // backward compat
       body=`<img class="imgmsg" src="${m.img}" data-id="${m.id}">`;
     } else if(m.text&&m.text.startsWith('[photo]')){
       const rest=m.text.slice(7);
@@ -915,14 +917,29 @@ $('tg-file-input').onchange=async function(){
     const fd=new FormData();
     fd.append('chat_id',chatId);
     fd.append(isVideo?'video':'document',file);
-    fd.append('caption',`📨 ${myName} আপনাকে একটি ${isVideo?'ভিডিও':'ফাইল'} পাঠিয়েছে (AnonChat এর বাইরে)`);
+    if(!isVideo) fd.append('caption',`📨 ${myName} আপনাকে একটি ফাইল পাঠিয়েছে (AnonChat এর বাইরে)`);
     fd.append('reply_markup',JSON.stringify(TG_OPEN_CHAT_BTN));
     const endpoint=isVideo?'sendVideo':'sendDocument';
     const r=await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/${endpoint}`,{method:'POST',body:fd});
     const d=await r.json();
     if(!d.ok) throw new Error(d.description||'Telegram upload failed');
-    // চ্যাটে একটা system note রাখো — যাতে বোঝা যায় ফাইল পাঠানো হয়েছে
-    await push(msgsRef,{role:'system',text:`📨 ${myName} একটি বড় ${isVideo?'ভিডিও':'ফাইল'} Telegram দিয়ে পাঠিয়েছে — ওখানে চেক করো!`,ts:Date.now(),system:true});
+    if(isVideo){
+      // video এখানেই in-app play করা যাবে — voice-এর মতো getFile দিয়ে direct URL বানানো হচ্ছে
+      const fileId=d.result&&d.result.video&&d.result.video.file_id;
+      let playUrl=null;
+      if(fileId){
+        try{
+          const fr=await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getFile?file_id=${fileId}`);
+          const fd2=await fr.json();
+          if(fd2.ok&&fd2.result&&fd2.result.file_path) playUrl=`https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${fd2.result.file_path}`;
+        }catch(e){}
+      }
+      await push(msgsRef,{role,text:playUrl?`[video]${playUrl}`:'[tgvideo]',ts:Date.now(),delivered:true,replyTo:replyTo?String(replyTo.ts||replyTo.id):''});
+      clearReply();
+    } else {
+      // চ্যাটে একটা system note রাখো — যাতে বোঝা যায় ফাইল পাঠানো হয়েছে
+      await push(msgsRef,{role:'system',text:`📨 ${myName} একটি বড় ফাইল Telegram দিয়ে পাঠিয়েছে — ওখানে চেক করো!`,ts:Date.now(),system:true});
+    }
     toast('✅ Telegram এ পাঠানো হয়েছে!');
   }catch(e){ toast('❌ '+e.message); }
   $('upload-bar').querySelector('span').textContent='📤 Uploading...';
@@ -957,7 +974,8 @@ $('ctx-copy').onclick=()=>{
 };
 $('ctx-del').onclick=async()=>{
   if(!ctxMsg||ctxMsg.role!==role){toast('❌ Cannot delete');hideCtx();return;}
-  await remove(ref(db,`messages/${ctxMsg.id}`)); hideCtx();
+  await update(ref(db,`messages/${ctxMsg.id}`),{text:'[unsent]',unsent:true,reactions:{}}).catch(()=>{});
+  hideCtx();
 };
 
 // ── EDIT ──
