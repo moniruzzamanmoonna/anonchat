@@ -294,6 +294,7 @@ const FB = { apiKey:"AIzaSyBMTgqiX7AQQ5wyqMAb6oBl5cYaDXLYwQA", authDomain:"anon-
 const SECRET="moonstar2025", ICONS={A:"★",B:"☽"};
 const EMOJIS=['🤍','🙂','😑','😆','😮','😢','👍','🥀','🪦'];
 const CLOUD="djado1b65", PRESET="voiceee";
+const IMGBB_API_KEY="b96e2adf42f5cb540ca9dd35dfc44a5a"; // ছবি এখন ImgBB-তে যায় (Cloudinary limit শেষের কাছে)
 
 const app=initializeApp(FB), db=getDatabase(app);
 const msgsRef=ref(db,"messages"), liteMsgsRef=ref(db,"chat_lite/messages"), presRef=ref(db,"presence"), nickRef=ref(db,"nicknames");
@@ -383,8 +384,8 @@ function startPresence(){
   // immediate 1s tick for header only
   setInterval(()=>{ updateHeader(); renderSeenTime(); },1000);
   // named handlers — back button এ remove করা যাবে
-  _visHandler=()=>{ if(!document.hidden) ping(); };
-  _focusHandler=()=>{ ping(); };
+  _visHandler=()=>{ if(!document.hidden) { ping(); markSeen(); } };
+  _focusHandler=()=>{ ping(); markSeen(); };
   _pagesHandler=()=>{ ping(); };
   document.addEventListener('visibilitychange',_visHandler);
   window.addEventListener('focus',_focusHandler);
@@ -475,7 +476,8 @@ function renderMsgs(){
       }
     }
     const orig=m.replyTo?msgs.find(x=>x.id===m.replyTo||String(x.ts)===String(m.replyTo)):null;
-    const rep=orig?`<div class="rpreview" data-replyid="${orig.id}" style="cursor:pointer">↩ ${esc(orig.text||'📷')}</div>`:'';
+    const origPreview=orig?(orig.text==='[tgvideo]'?'🎥 Video (Telegram)':orig.text==='[tgvoice]'?'🎙️ Voice (Telegram)':orig.text&&orig.text.startsWith('[photo]')?'📷 ছবি':orig.text&&orig.text.startsWith('[video]')?'🎬 ভিডিও':orig.text&&orig.text.startsWith('[voice]')?'🎙️ Voice message':(orig.text||'📷')):'';
+    const rep=orig?`<div class="rpreview" data-replyid="${orig.id}" style="cursor:pointer">↩ ${esc(origPreview)}</div>`:'';
     const edited=m.edited?'<span style="font-size:9px;color:var(--sub);margin-left:4px;opacity:.7">(edited)</span>':'';
     let body;
     if(m.img){ // backward compat
@@ -486,6 +488,10 @@ function renderMsgs(){
       const purl=nlIdx>-1?rest.slice(0,nlIdx):rest;
       const cap=nlIdx>-1?rest.slice(nlIdx+1).trim():'';
       body=`<img class="imgmsg" src="${purl}" data-id="${m.id}" style="max-width:200px;border-radius:10px;display:block;">${cap?`<span style="display:block;font-size:12px;margin-top:5px;opacity:.85;">${esc(cap)}</span>`:''}`;
+    } else if(m.text==='[tgvideo]'){
+      body=`<div style="display:flex;align-items:center;gap:10px;background:rgba(100,80,200,0.15);border:1px solid rgba(150,120,255,0.3);border-radius:12px;padding:12px 14px;"><span style="font-size:24px;">🎥</span><div style="font-size:13px;line-height:1.4;"><div style="font-weight:600;color:#c0b0ff;">Video is on Anonchatbot</div><div style="opacity:.75;font-size:11px;margin-top:2px;">চেক করো @Anonchatison_bot</div></div></div>`;
+    } else if(m.text==='[tgvoice]'){
+      body=`<div style="display:flex;align-items:center;gap:10px;background:rgba(100,80,200,0.15);border:1px solid rgba(150,120,255,0.3);border-radius:12px;padding:12px 14px;"><span style="font-size:24px;">🎙️</span><div style="font-size:13px;line-height:1.4;"><div style="font-weight:600;color:#c0b0ff;">Voice is on Anonchatbot</div><div style="opacity:.75;font-size:11px;margin-top:2px;">চেক করো @Anonchatison_bot</div></div></div>`;
     } else if(m.text&&m.text.startsWith('[video]')){
       const vurl=m.text.slice(7);
       body=`<video src="${vurl}" controls playsinline style="max-width:220px;max-height:280px;border-radius:10px;display:block;"></video>`;
@@ -567,8 +573,11 @@ function renderMsgs(){
 }
 
 function markSeen(){
-  // শুধু তখনই seen mark করব যখন page visible
-  if(document.hidden) return;
+  // শুধু document.hidden চেক করাটা যথেষ্ট না — mobile-এ screen lock/background হলেও
+  // অনেক সময় hidden ঠিকমতো true হয় না, ফলে message আসামাত্রই (user আসলে না দেখলেও)
+  // seen mark হয়ে যেত। এখন document.hasFocus() ও চেক করা হচ্ছে — tab সত্যিই active
+  // থাকলে তবেই seen update হবে।
+  if(document.hidden || !document.hasFocus()) return;
   const other=role==='A'?'B':'A';
   const now=Date.now();
   msgs.filter(m=>m.role===other&&!m.seen).forEach(m=>{
@@ -753,15 +762,17 @@ $('preview-send').onclick=async()=>{
   const caption=$('preview-caption').value.trim();
   $('photo-preview-modal').style.display='none';
   $('upload-bar').classList.add('show');
-  const fd=new FormData(); fd.append('file',_pendingPhotoFile); fd.append('upload_preset',PRESET);
+  const fd=new FormData(); fd.append('image',_pendingPhotoFile);
   try{
-    const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`,{method:'POST',body:fd});
+    const r=await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`,{method:'POST',body:fd});
     const d=await r.json();
-    const txt=caption?`[photo]${d.secure_url}\n${caption}`:`[photo]${d.secure_url}`;
+    const url=d.data&&d.data.url;
+    if(!url) throw new Error('no url');
+    const txt=caption?`[photo]${url}\n${caption}`:`[photo]${url}`;
     await push(msgsRef,{role,text:txt,ts:Date.now(),delivered:true,replyTo:replyTo?String(replyTo.ts||replyTo.id):''});
     clearReply();
     sendNtfy(txt).catch(()=>{});
-    backupPhotoToGallery(d.secure_url, caption).catch(()=>{});
+    backupPhotoToGallery(url, caption).catch(()=>{});
     toast('✅ Photo sent!');
   }catch(e){toast('❌ Upload failed');}
   $('upload-bar').classList.remove('show');
