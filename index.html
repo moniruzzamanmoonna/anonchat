@@ -1677,6 +1677,7 @@ window.serverNow = () => Date.now() + (window.__serverTimeOffset || 0);
 // ── CLOUDINARY CONFIG ───────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "djado1b65";
 const CLOUDINARY_UPLOAD_PRESET = "voiceee";
+const IMGBB_API_KEY = "b96e2adf42f5cb540ca9dd35dfc44a5a"; // ছবি এখন ImgBB-তে যায় (Cloudinary limit শেষের কাছে) — video এখনো Cloudinary-তেই
 
 const msgsRef = ref(db, "messages");
 const liteMsgsRef = ref(db, "chat_lite/messages");
@@ -4056,7 +4057,8 @@ window.adminLoadMsgs = async function() {
     const date = new Date(Number(m.ts)).toLocaleDateString('bn-BD');
     const who = m.role === 'A' ? '★' : '☽';
     let preview = '';
-    if (m.text && m.text.startsWith('[photo]')) preview = '📷 Photo';
+    if (m.text === '[tgvideo]') preview = '🎥 Video (Telegram)';
+    else if (m.text && m.text.startsWith('[photo]')) preview = '📷 Photo';
     else if (m.text && m.text.startsWith('[video]')) preview = '🎬 Video';
     else if (m.text && m.text.startsWith('[voice]')) preview = '🎙️ Voice';
     else preview = (m.text || '').substring(0, 50);
@@ -4197,6 +4199,10 @@ function buildMsgHtml(msg, idx, otherSeen) {
           const thumbUrl = thumbNl > -1 ? thumbRest.slice(0, thumbNl) : thumbRest;
           const label = orig.isDoodle ? '🎨 Doodle' : '📷 ছবি';
           replyContent = `<div style="display:flex;align-items:center;gap:8px;"><img src="${thumbUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0;"><span>${label}</span></div>`;
+        } else if (orig.text === '[tgvideo]') {
+          replyContent = `🎥 Video (Telegram)`;
+        } else if (orig.text === '[tgvoice]') {
+          replyContent = `🎙️ Voice (Telegram)`;
         } else if (orig.text && orig.text.startsWith('[voice]')) {
           replyContent = `🎙️ Voice message`;
         } else {
@@ -4246,6 +4252,14 @@ function buildMsgHtml(msg, idx, otherSeen) {
       } else {
         bubbleContent = `${badge}<img class="img-bubble" src="${url}" onclick="openImage('${url}')">${captionHtml}`;
       }
+    } else if (msg.text === '[tgvideo]') {
+      bubbleContent = `<div style="display:flex;align-items:center;gap:10px;background:rgba(100,80,200,0.15);border:1px solid rgba(150,120,255,0.3);border-radius:12px;padding:12px 14px;">
+        <span style="font-size:24px;">🎥</span>
+        <div style="font-size:13px;line-height:1.4;">
+          <div style="font-weight:600;color:#c0b0ff;">Video is on Anonchatbot</div>
+          <div style="opacity:0.75;font-size:11px;margin-top:2px;">চেক করো @Anonchatison_bot</div>
+        </div>
+      </div>`;
     } else if (msg.text && msg.text.startsWith('[video]')) {
       const vurl = msg.text.replace('[video]','');
       if (msg.viewOnce && msg.role !== myRole) {
@@ -4264,6 +4278,14 @@ function buildMsgHtml(msg, idx, otherSeen) {
       } else {
         bubbleContent = `<video src="${vurl}" controls playsinline preload="metadata" style="max-width:220px;max-height:300px;border-radius:10px;display:block;" onerror="this.insertAdjacentHTML('afterend','<a href=\\"${vurl}\\" target=\\"_blank\\" style=\\"color:#99aaff;font-size:12px;\\">🔗 Open video</a>');this.remove()"></video>`;
       }
+    } else if (msg.text === '[tgvoice]') {
+      bubbleContent = `<div style="display:flex;align-items:center;gap:10px;background:rgba(100,80,200,0.15);border:1px solid rgba(150,120,255,0.3);border-radius:12px;padding:12px 14px;">
+        <span style="font-size:24px;">🎙️</span>
+        <div style="font-size:13px;line-height:1.4;">
+          <div style="font-weight:600;color:#c0b0ff;">Voice is on Anonchatbot</div>
+          <div style="opacity:0.75;font-size:11px;margin-top:2px;">চেক করো @Anonchatison_bot</div>
+        </div>
+      </div>`;
     } else if (msg.text && msg.text.startsWith('[voice]')) {
       const url = msg.text.replace('[voice]','');
       bubbleContent = `<div class="voice-player">
@@ -4439,39 +4461,54 @@ async function uploadVoice(blob) {
   const progressBar = document.getElementById('upload-progress-bar');
   progressEl.style.display = 'block';
   progressBar.style.width = '10%';
-  setStatus('ভয়েস আপলোড হচ্ছে...', false);
+  setStatus('ভয়েস পাঠানো হচ্ছে...', false);
 
-  const formData = new FormData();
-  formData.append('file', blob, 'voice.webm');
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  formData.append('resource_type', 'video');
+  // Cloudinary limit শেষের কাছে — voice-ও এখন সরাসরি Telegram bot-এ যায় (video-র মতো)
+  const other = myRole === "A" ? "B" : "A";
+  const chatId = TG_CHAT_IDS[other];
+  const savedReplyTo = replyTo;
 
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
-  xhr.upload.onprogress = e => {
-    if (e.lengthComputable) progressBar.style.width = ((e.loaded / e.total) * 100) + '%';
-  };
-  xhr.onload = async () => {
-    progressEl.style.display = 'none';
-    if (xhr.status === 200) {
-      const data = JSON.parse(xhr.responseText);
-      await push(msgsRef, {
-        role: myRole,
-        text: '[voice]' + data.secure_url,
-        ts: Date.now(),
-        replyTo: replyTo ? String(replyTo.ts) : '',
-        reactions: {}
-      });
-      cancelReply();
-      sendMsgNotification('[voice]');
-      sendTelegramBackup('voice', data.secure_url);
-      setStatus('', false);
-    } else {
-      setStatus('⚠ ভয়েস আপলোড হয়নি: ' + xhr.status, true);
-    }
-  };
-  xhr.onerror = () => { progressEl.style.display = 'none'; setStatus('⚠ নেটওয়ার্ক error', true); };
-  xhr.send(formData);
+  function sendVoiceTo(targetChatId, trackProgress) {
+    return new Promise((res) => {
+      if (!targetChatId) { res({ ok: false }); return; }
+      const fd = new FormData();
+      fd.append('chat_id', targetChatId);
+      fd.append('voice', blob, 'voice.webm');
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVoice`);
+      if (trackProgress) {
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) progressBar.style.width = ((e.loaded/e.total)*90+5) + '%';
+        };
+      }
+      xhr.onload = () => {
+        let data; try { data = JSON.parse(xhr.responseText); } catch(e) { data = {}; }
+        res(data);
+      };
+      xhr.onerror = () => res({ ok: false, description: 'network error' });
+      xhr.send(fd);
+    });
+  }
+
+  const result = await sendVoiceTo(chatId, true);
+  progressBar.style.width = '100%';
+  progressEl.style.display = 'none';
+  if (result.ok) {
+    await push(msgsRef, {
+      role: myRole,
+      text: '[tgvoice]',
+      ts: Date.now(),
+      replyTo: savedReplyTo ? String(savedReplyTo.ts) : '',
+      reactions: {}
+    });
+    cancelReply();
+    sendMsgNotification('[voice]');
+    // Backup channel-এও একটা copy পাঠাও
+    sendVoiceTo(TG_BACKUP_CHAT_ID, false);
+    setStatus('', false);
+  } else {
+    setStatus('⚠ ভয়েস পাঠানো যায়নি: ' + (result.description || ''), true);
+  }
 }
 
 window.vpToggle = function(btn, url) {
@@ -4629,15 +4666,18 @@ window.sendMediaPreview = async function() {
   document.getElementById('media-preview-modal').style.display = 'none';
   _previewFiles = null;
 
+  // ভিডিও ekhon Cloudinary bypass kore shorashori Telegram bot-e jay
+  // (Cloudinary storage limit-er shomossha ache, tai video ar oikhane rakha hocche na)
+  if (type === 'video') {
+    return sendVideoDirectToTelegram(files[0]);
+  }
+
   const progressEl = document.getElementById("upload-progress");
   const progressBar = document.getElementById("upload-progress-bar");
   progressEl.style.display = "block";
 
-  const endpoint = type === 'video'
-    ? `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`
-    : `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-
-  const label = type === 'video' ? 'ভিডিও' : 'ছবি';
+  const endpoint = `https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`;
+  const label = 'ছবি';
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -4646,8 +4686,7 @@ window.sendMediaPreview = async function() {
 
     await new Promise((resolve) => {
       const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("image", file);
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", endpoint);
@@ -4658,16 +4697,14 @@ window.sendMediaPreview = async function() {
         progressBar.style.width = "100%";
         let data;
         try { data = JSON.parse(xhr.responseText); } catch(e) { data = {}; }
-        if (xhr.status === 200 && data.secure_url) {
-          const prefix = type === 'video' ? '[video]' : '[photo]';
-          // caption শুধু photo-তে সাপোর্টেড (chat-lite এর ফরম্যাট অনুযায়ী), আর শুধু প্রথম
-          // ছবিতে জুড়ে দেওয়া হচ্ছে — একাধিক ছবি একসাথে পাঠালে caption একবারই দেখাবে
-          let bodyUrl = data.secure_url;
-          if (type === 'video' && bodyUrl.includes('/upload/')) bodyUrl = bodyUrl.replace('/upload/', '/upload/ac_aac/');
-          if (type === 'image' && i === 0 && caption) bodyUrl = `${bodyUrl}\n${caption}`;
+        const resultUrl = data.data && data.data.url;
+        if (xhr.status === 200 && resultUrl) {
+          // caption শুধু প্রথম ছবিতে জুড়ে দেওয়া হচ্ছে — একাধিক ছবি একসাথে পাঠালে
+          // caption একবারই দেখাবে
+          let bodyUrl = (i === 0 && caption) ? `${resultUrl}\n${caption}` : resultUrl;
           const msgData = {
             role: myRole,
-            text: prefix + bodyUrl,
+            text: '[photo]' + bodyUrl,
             ts: Date.now(),
             replyTo: (i === 0 && replyTo) ? String(replyTo.ts) : "",
             reactions: {}
@@ -4675,10 +4712,10 @@ window.sendMediaPreview = async function() {
           if (vo) { msgData.viewOnce = true; msgData.viewOnceSec = viewOnceDuration || 5; }
           await push(msgsRef, msgData);
           if (i === 0) { cancelReply(); sendMsgNotification(msgData.text); }
-          // View Once না হলে backup পাঠাও (photo ও video দুটোই)
-          if (!vo) sendTelegramBackup(type === 'video' ? 'video' : 'photo', data.secure_url);
+          // View Once না হলে backup পাঠাও
+          if (!vo) sendTelegramBackup('photo', resultUrl);
         } else {
-          const errMsg = data.error?.message || ("Status: " + xhr.status);
+          const errMsg = (data.error && (data.error.message || data.error.text)) || ("Status: " + xhr.status);
           console.error("Upload failed:", errMsg, xhr.responseText);
           setStatus("⚠ " + errMsg, true);
         }
@@ -4692,6 +4729,74 @@ window.sendMediaPreview = async function() {
   progressEl.style.display = "none";
   progressBar.style.width = "0%";
 };
+
+// ── VIDEO সরাসরি Telegram bot-এ (Cloudinary bypass) ──────
+async function sendVideoDirectToTelegram(file) {
+  const maxMB = 50; // Telegram bot API-র hard limit
+  if (file.size > maxMB * 1024 * 1024) {
+    setStatus(`⚠ ভিডিও ${maxMB}MB এর বেশি, পাঠানো যাবে না`, true);
+    return;
+  }
+
+  const progressEl = document.getElementById("upload-progress");
+  const progressBar = document.getElementById("upload-progress-bar");
+  progressEl.style.display = "block";
+  progressBar.style.width = "5%";
+  setStatus('ভিডিও Telegram-এ পাঠানো হচ্ছে...', false);
+
+  const other = myRole === "A" ? "B" : "A";
+  const chatId = TG_CHAT_IDS[other];
+  const myName = nicknames[myRole] || (myRole === "A" ? "Star" : "Moon");
+  const savedReplyTo = replyTo;
+  const captionText = `🎥 ${myName} একটি ভিডিও পাঠিয়েছে`;
+
+  function sendVideoTo(targetChatId, trackProgress) {
+    return new Promise((res) => {
+      if (!targetChatId) { res({ ok: false }); return; }
+      const fd = new FormData();
+      fd.append('chat_id', targetChatId);
+      fd.append('video', file);
+      fd.append('caption', captionText);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVideo`);
+      if (trackProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) progressBar.style.width = ((e.loaded/e.total)*90+5) + "%";
+        };
+      }
+      xhr.onload = () => {
+        let data; try { data = JSON.parse(xhr.responseText); } catch(e) { data = {}; }
+        res(data);
+      };
+      xhr.onerror = () => res({ ok: false, description: 'network error' });
+      xhr.send(fd);
+    });
+  }
+
+  const result = await sendVideoTo(chatId, true);
+  progressBar.style.width = "100%";
+  if (result.ok) {
+    const msgData = {
+      role: myRole,
+      text: '[tgvideo]',
+      ts: Date.now(),
+      replyTo: savedReplyTo ? String(savedReplyTo.ts) : "",
+      reactions: {}
+    };
+    await push(msgsRef, msgData);
+    cancelReply();
+    // এই notification ইচ্ছাকৃতভাবে online থাকলেও যাবে — video দেখতে Telegram-এ
+    // যেতে হবে, তাই সাথে সাথে জানানো জরুরি
+    sendMsgNotification('[video]', true);
+    // Backup channel-এও একটা copy পাঠাও
+    sendVideoTo(TG_BACKUP_CHAT_ID, false);
+  } else {
+    setStatus('⚠ ' + (result.description || 'Telegram upload failed'), true);
+  }
+
+  progressEl.style.display = "none";
+  progressBar.style.width = "0%";
+}
 
 // ── UPLOAD PHOTO (Cloudinary) ─────────────────────────────
 window.uploadPhoto = async function(event) {
@@ -5102,15 +5207,15 @@ window.sendDoodle = async function() {
   flat.toBlob(async blob => {
     if (!blob) { showToast('Error!'); return; }
     const formData = new FormData();
-    formData.append("file", blob, "doodle.png");
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("image", blob, "doodle.png");
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method:"POST", body:formData });
+      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method:"POST", body:formData });
       const data = await res.json();
-      if (data.secure_url) {
+      const url = data.data && data.data.url;
+      if (url) {
         const voData = doodleViewOnce ? { viewOnce:true, viewOnceSec: doodleViewOnceSec } : {};
-        await push(msgsRef, { role:myRole, text:`[photo]${data.secure_url}`, ts:Date.now(), replyTo:'', reactions:{}, isDoodle:true, ...voData });
-        if (!doodleViewOnce) sendTelegramBackup('photo', data.secure_url);
+        await push(msgsRef, { role:myRole, text:`[photo]${url}`, ts:Date.now(), replyTo:'', reactions:{}, isDoodle:true, ...voData });
+        if (!doodleViewOnce) sendTelegramBackup('photo', url);
         doodleViewOnce = false; doodleViewOnceSec = 5; resetDoodleVoBtn();
         closeDoodle();
       } else showToast('Upload failed');
@@ -5295,6 +5400,10 @@ window.ctxReply = function() {
     const url = rNl > -1 ? rRest.slice(0, rNl) : rRest;
     const label = m.isDoodle ? '🎨 Doodle' : '📷 ছবি';
     replyTextEl.innerHTML = `↩ <img src="${url}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;vertical-align:middle;margin:0 4px;"> ${label}`;
+  } else if (m.text === '[tgvideo]') {
+    replyTextEl.textContent = "↩ 🎥 Video (Telegram)";
+  } else if (m.text === '[tgvoice]') {
+    replyTextEl.textContent = "↩ 🎙️ Voice (Telegram)";
   } else if (m.text && m.text.startsWith('[voice]')) {
     replyTextEl.textContent = "↩ 🎙️ Voice message";
   } else {
@@ -5433,8 +5542,12 @@ window.touchEnd = function(e, idx) {
           const url = sNl > -1 ? sRest.slice(0, sNl) : sRest;
           const label = msg.isDoodle ? '🎨 Doodle' : '📷 ছবি';
           replyTextEl.innerHTML = `↩ <img src="${url}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;vertical-align:middle;margin:0 4px;"> ${label}`;
+        } else if (msg.text === '[tgvideo]') {
+          replyTextEl.textContent = "↩ 🎥 Video (Telegram)";
         } else if (msg.text && msg.text.startsWith('[video]')) {
           replyTextEl.textContent = "↩ 🎬 ভিডিও";
+        } else if (msg.text === '[tgvoice]') {
+          replyTextEl.textContent = "↩ 🎙️ Voice (Telegram)";
         } else if (msg.text && msg.text.startsWith('[voice]')) {
           replyTextEl.textContent = "↩ 🎙️ Voice message";
         } else {
@@ -6202,12 +6315,14 @@ let _ntfyLastSent = 0;
 let _ntfyPendingBody = null;
 let _ntfyPendingTimer = null;
 
-async function sendMsgNotification(text) {
+async function sendMsgNotification(text, force) {
   if (!myRole) return;
   const other = myRole === "A" ? "B" : "A";
-  // অন্যজন online থাকলে push পাঠাবো না
+  // অন্যজন online থাকলে push পাঠাবো না — তবে video-র ক্ষেত্রে force=true দিয়ে এই
+  // check বাইপাস করা হয়, কারণ video দেখতে Telegram-এ যেতে হবে, তাই সাথে সাথে
+  // জানানো দরকার even online থাকলেও
   const op = presenceData[other];
-  if (op && op.online && (Date.now() - Number(op.last)) < 12000) return;
+  if (!force && op && op.online && (Date.now() - Number(op.last)) < 12000) return;
   const chatId = TG_CHAT_IDS[other];
   if (!chatId) return;
   const myName = nicknames[myRole] || (myRole === "A" ? "Star" : "Moon");
