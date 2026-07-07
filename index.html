@@ -4137,40 +4137,17 @@ function renderMessages() {
     container.innerHTML = allMessages.map((msg, idx) => buildMsgHtml(msg, idx, otherSeen)).join("");
     if (!wasAtBottom) container.scrollTop = scrollTop;
   } else {
-    // Same count — diff each element and update only changed ones
+    // Same count — প্রতিটা message-এর নতুন HTML বানিয়ে, আসলেই বদলেছে কিনা দেখে
+    // শুধু বদলানো element replace করি। আগে এখানে শুধু reactions/seen আপডেট হতো,
+    // ফলে unsend/edit-এর মতো in-place পরিবর্তন (count একই থাকে) কখনো UI-তে
+    // দেখা যেত না — bubble-এর আসল content-ই replace হতো না।
     existing.forEach((el, idx) => {
       const msg = allMessages[idx];
       if (!msg) return;
-      const newHtml = buildMsgHtml(msg, idx, otherSeen);
-      // Compare reactions and seen status only — skip heavy outerHTML compare
       if (msg.system || msg.role === 'system') return;
-      const reactEl = el.querySelector('.reactions');
-      const curReact = reactEl ? reactEl.outerHTML : '';
-      const r = msg.reactions || {};
-      const badges = Object.entries(r).map(([e, v]) => {
-        const users = Object.values(v || {});
-        return users.length ? `<span class="reaction-badge" onclick="doReact('${e}',${msg.ts})">${e} ${users.length}</span>` : '';
-      }).join('');
-      const newReact = badges ? `<div class="reactions">${badges}</div>` : '';
-      if (curReact !== newReact) {
-        if (reactEl) reactEl.outerHTML = newReact || '<div class="reactions"></div>';
-        else {
-          const meta = el.querySelector('.msg-meta');
-          if (meta && newReact) meta.insertAdjacentHTML('beforebegin', newReact);
-        }
-      }
-      // Update seen/delivered on last MY message only
-      const lastMyIdx = allMessages.reduce((last, m, i) => (m.role === myRole && !m.system ? i : last), -1);
-      if (idx === lastMyIdx) {
-        const metaEl = el.querySelector('.msg-meta');
-        if (metaEl) {
-          const isMe = msg.role === myRole;
-          const isSeen = isMe && otherSeen && Number(otherSeen) >= Number(msg.ts);
-          const isDelivered = isMe && !isSeen;
-          const metaExtra = isMe ? (isSeen ? `<span class="seen-label">✓✓ Seen</span>` : `<span class="delivered-label">✓ Delivered</span>`) : '';
-          const timeEl = metaEl.querySelector('.msg-time');
-          if (timeEl) { timeEl.nextElementSibling?.remove(); if (metaExtra) timeEl.insertAdjacentHTML('afterend', metaExtra); }
-        }
+      const newHtml = buildMsgHtml(msg, idx, otherSeen);
+      if (el.outerHTML !== newHtml) {
+        el.outerHTML = newHtml;
       }
     });
   }
@@ -4781,12 +4758,12 @@ async function sendVideoDirectToTelegram(file) {
   const savedReplyTo = replyTo;
   const captionText = `🎥 ${myName} একটি ভিডিও পাঠিয়েছে`;
 
-  function sendVideoTo(targetChatId, trackProgress) {
+  function sendVideoTo(targetChatId, fileOrId, trackProgress) {
     return new Promise((res) => {
       if (!targetChatId) { res({ ok: false }); return; }
       const fd = new FormData();
       fd.append('chat_id', targetChatId);
-      fd.append('video', file);
+      fd.append('video', fileOrId);
       fd.append('caption', captionText);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendVideo`);
@@ -4804,23 +4781,36 @@ async function sendVideoDirectToTelegram(file) {
     });
   }
 
-  const result = await sendVideoTo(chatId, true);
-  progressBar.style.width = "100%";
+  async function getPlayableUrl(fileId) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getFile?file_id=${fileId}`);
+      const data = await res.json();
+      if (data.ok && data.result && data.result.file_path) {
+        return `https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${data.result.file_path}`;
+      }
+    } catch(e) { /* fall through */ }
+    return null;
+  }
+
+  const result = await sendVideoTo(chatId, file, true);
+  progressBar.style.width = "95%";
   if (result.ok) {
+    const fileId = result.result && result.result.video && result.result.video.file_id;
+    const playUrl = fileId ? await getPlayableUrl(fileId) : null;
+    progressBar.style.width = "100%";
     const msgData = {
       role: myRole,
-      text: '[tgvideo]',
+      text: playUrl ? ('[video]' + playUrl) : '[tgvideo]',
       ts: Date.now(),
       replyTo: savedReplyTo ? String(savedReplyTo.ts) : "",
       reactions: {}
     };
     await push(msgsRef, msgData);
     cancelReply();
-    // এই notification ইচ্ছাকৃতভাবে online থাকলেও যাবে — video দেখতে Telegram-এ
-    // যেতে হবে, তাই সাথে সাথে জানানো জরুরি
+    // এই notification ইচ্ছাকৃতভাবে online থাকলেও যাবে
     sendMsgNotification('[video]', true);
-    // Backup channel-এও একটা copy পাঠাও
-    sendVideoTo(TG_BACKUP_CHAT_ID, false);
+    // Backup channel-এ file_id দিয়েই পাঠাও (আবার আপলোড করতে হবে না)
+    if (fileId) sendVideoTo(TG_BACKUP_CHAT_ID, fileId, false);
   } else {
     setStatus('⚠ ' + (result.description || 'Telegram upload failed'), true);
   }
